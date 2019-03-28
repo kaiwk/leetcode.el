@@ -1,0 +1,36 @@
+# gen csrf token
+GET https://leetcode.com/accounts/login
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:66.0) Gecko/20100101 Firefox/66.0
+
+# login
+:csrf-token = VYjqPdOSyhztn8LmB0uWRSznrZW0lEVOOTrxlW6eJb1AazTGuQTlPF70RXey7TVD
+:account := (progn (require 'test-leetcode-account) leetcode-account)
+:password := (progn (require 'test-leetcode-account) leetcode-password)
+POST https://leetcode.com/accounts/login
+Host: leetcode.com
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:66.0) Gecko/20100101 Firefox/66.0
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate, br
+Referer: https://leetcode.com/accounts/login/
+X-Requested-With: XMLHttpRequest
+X-CSRFToken: :csrf-token
+Content-Type: multipart/form-data; boundary=---------------------------1629370452117720220691298653
+Origin: https://leetcode.com
+
+-----------------------------1629370452117720220691298653
+Content-Disposition: form-data; name="csrfmiddlewaretoken"
+
+:csrf-token
+-----------------------------1629370452117720220691298653
+Content-Disposition: form-data; name="login"
+
+:account
+-----------------------------1629370452117720220691298653
+Content-Disposition: form-data; name="password"
+
+:password
+-----------------------------1629370452117720220691298653
+Content-Disposition: form-data; name="next"
+
+/problems
+-----------------------------1629370452117720220691298653--
