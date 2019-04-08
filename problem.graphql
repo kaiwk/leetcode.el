@@ -106,3 +106,13 @@ query questionData($titleSlug: String!) {
     __typename
   }
 }
+
+query questionData($titleSlug:String!){
+  question(titleSlug:$titleSlug) {
+    likes
+    dislikes
+    content
+    topicTags{name}
+    codeSnippets{langSlug code}
+  }
+}

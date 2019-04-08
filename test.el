@@ -6,3 +6,5 @@
 
 ;; fetch user and problems
 (leetcode--fetch-user-and-problems)
+
+(leetcode--parse-problem "lru-cache")
