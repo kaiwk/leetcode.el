@@ -6,6 +6,3 @@
 
 ;; fetch user and problems
 (leetcode--fetch-user-and-problems)
-
-;; get problem description
-(leetcode-problem-description "lru-cache")

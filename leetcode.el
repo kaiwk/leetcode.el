@@ -30,7 +30,9 @@
 
 (require 'shr)
 (require 'furl)
+(require 'dash)
 (require 'graphql)
+
 
 (defcustom leetcode-account ""
   "leetcode login account."
@@ -57,13 +59,15 @@
 :tag      String
 :problems List
 
+    :status     String
     :id         Number
     :title      String
+    :acceptance String
     :difficulty Number {1,2,3}
-    :status     String
     :paid-only  Boolean {t|nil}
 ")
 
+(defvar leetcode--check-mark "✓")
 (defvar leetcode--problem-buffer-name "*leetcode:problem*")
 
 ;;; Login
@@ -132,6 +136,7 @@ only `leetcode--problems' will be set."
     (with-current-buffer (url-retrieve-synchronously leetcode--api-all-problems)
       (let ((result (json-read-object)))
         ;; user
+        (print result)
         (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name result)))
         (setq leetcode--user (plist-put leetcode--user :solved (alist-get 'num_solved result)))
         (setq leetcode--user (plist-put leetcode--user :easy (alist-get 'ac_easy result)))
@@ -150,19 +155,29 @@ only `leetcode--problems' will be set."
                                     (stat (alist-get 'stat cur))
                                     (status (alist-get 'status cur))
                                     (difficulty (alist-get 'level (alist-get 'difficulty cur)))
-                                    (paid-only (eq (alist-get 'paid_only cur) t)))
+                                    (paid-only (eq (alist-get 'paid_only cur) t))
+                                    (total-submitted (alist-get 'total_submitted stat))
+                                    (total-acs (alist-get 'total_acs stat)))
                                (push
                                 (list
-                                 :id (alist-get 'question_id stat)
-                                 :title (alist-get 'question__title stat)
-                                 :difficulty difficulty
                                  :status status
+                                 :id (- len i)
+                                 :title (alist-get 'question__title stat)
+                                 :acceptance (concat
+                                              (number-to-string
+                                               (/ (fround (* 1000 (/ (float total-acs) total-submitted))) 10))
+                                              "%")
+                                 :difficulty difficulty
                                  :paid-only paid-only)
                                 problems)))
                            problems)))))))
 
 (defun leetcode--title-slug (title)
-  (replace-regexp-in-string "\s+" "-" (downcase title)))
+  (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
+         (str2 (replace-regexp-in-string "(" "" str1))
+         (str3 (replace-regexp-in-string ")" "" str2))
+         (res (replace-regexp-in-string "," "" str3)))
+    res))
 
 (defun leetcode--graphql-params (opration query &optional vars)
   (list
@@ -210,18 +225,109 @@ only `leetcode--problems' will be set."
         (while (re-search-forward regex (point-max) t)
           (replace-match to))))))
 
-(defun leetcode-problem-description (title)
-  "Clean leetcode problem description."
-  (with-current-buffer (get-buffer-create leetcode--problem-buffer-name)
-    (insert (alist-get 'content (leetcode--parse-problem title)))
-    (leetcode--replace-in-buffer "" "")
-    (leetcode--replace-in-buffer "<[^<]*>" "")
-    (leetcode--replace-in-buffer "&copy;" "(c)")
-    (leetcode--replace-in-buffer "&amp;" "&")
-    (leetcode--replace-in-buffer "lt;" "<")
-    (leetcode--replace-in-buffer "gt;" ">")
-    (leetcode--replace-in-buffer "&nbsp;" " "))
-  (switch-to-buffer leetcode--problem-buffer-name))
+(defun leetcode--make-tabulated-headers (column-names rows)
+  "Column width calculated by picking the max width of every cell
+under that column and the column name."
+  (let ((widths
+         (-reduce-from
+          (lambda (acc row)
+            (-zip-with
+             (lambda (a col) (max a (length col)))
+             acc
+             (append row '())))
+          (-map #'length column-names)
+          rows)))
+    (cl-map
+     #'vector #'identity
+     (-zip-with
+      (lambda (col size) (list col size nil))
+      column-names widths))))
+
+(defun leetcode-problems--refresh ()
+  (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
+         (rows (let ((problems (reverse (plist-get leetcode--problems :problems)))
+                     rows)
+                 (dolist (p problems)
+                   (setq rows
+                         (cons
+                          (vector
+                           (if (string-equal (plist-get p :status) "ac")
+                               leetcode--check-mark
+                             " ")
+                           (number-to-string (plist-get p :id))
+                           (plist-get p :title)
+                           (plist-get p :acceptance)
+                           (cond
+                            ((eq 1 (plist-get p :difficulty)) "easy")
+                            ((eq 2 (plist-get p :difficulty)) "medium")
+                            ((eq 3 (plist-get p :difficulty)) "difficult")))
+                          rows)))
+                 rows))
+         (headers (leetcode--make-tabulated-headers column-names rows)))
+    (setq tabulated-list-format headers)
+    (setq tabulated-list-entries
+          (-zip-with
+           (lambda (i x) (list i x))
+           (-iterate '1+ 0 (length rows))
+           rows)))
+  (tabulated-list-init-header))
+
+(defun leetcode ()
+  "Show leetcode problems buffer."
+  (interactive)
+  (switch-to-buffer (get-buffer-create "*leetcode*"))
+  (leetcode-problems-mode)
+  (leetcode-problems--refresh)
+  (tabulated-list-print t))
+
+(defvar leetcode-problems-mode-map
+  (let ((map (make-sparse-keymap)))
+    (prog1 map
+      (suppress-keymap map)
+      (define-key map (kbd "RET") #'leetcode-problems-show-description)
+      (define-key map "n" #'next-line)
+      (define-key map "p" #'previous-line)))
+  "Keymap for `leetcode-problems-mode'")
+
+(setq leetcode-problems-mode-map
+      (let ((map (make-sparse-keymap)))
+        (prog1 map
+          (suppress-keymap map)
+          (define-key map (kbd "RET") #'leetcode-problems-show-description)
+          (define-key map "n" #'next-line)
+          (define-key map "p" #'previous-line))))
+
+(defun leetcode-problems-show-description ()
+  "Show current entry problem description. Get current entry by
+using `tabulated-list-get-entry' and use `shr-render-buffer' to
+render problem description."
+  (interactive)
+  (let ((title (aref (tabulated-list-get-entry) 2))
+        (buf-name "*leetcode-description*"))
+    (when (get-buffer buf-name)
+      (kill-buffer buf-name))
+    (with-temp-buffer
+      (insert (alist-get 'content (leetcode--parse-problem title)))
+      (setq shr-current-font t)
+      (leetcode--replace-in-buffer "" "")
+      (shr-render-buffer (current-buffer)))
+    (with-current-buffer "*html*"
+      (rename-buffer buf-name)
+      (leetcode-problem-description-mode)
+      (switch-to-buffer (current-buffer)))))
+
+(define-derived-mode leetcode-problems-mode
+  tabulated-list-mode "LeetCode Problems"
+  "Major mode for browsing a list of problems."
+  (setq tabulated-list-padding 2)
+  (add-hook 'tabulated-list-revert-hook #'leetcode-problems--refresh nil t)
+  (use-local-map leetcode-problems-mode-map))
+
+(define-derived-mode leetcode-problem-description-mode
+  special-mode "LeetCode Problem Description"
+  "Major mode for display problem description.")
+
+(add-hook 'leetcode-problems-mode-hook 'hl-line-mode)
 
 (provide 'leetcode)
 ;;; leetcode.el ends here
