@@ -10,4 +10,8 @@
 # Undo-tree save-files
 *.~undo-tree
 
+# ignore these dirty local tests.
+test.el
 test-leetcode-account.el
+problem.graphql
+*.http
