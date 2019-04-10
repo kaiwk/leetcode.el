@@ -430,7 +430,7 @@ render problem description."
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
     ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
-    ("python3" . ".py") ("ruby" . ".rb") ("rust" . "rs")
+    ("python3" . ".py") ("ruby" . ".rb") ("rust" . ".rs")
     ("scala" . ".scala") ("swift" . ".swift"))
   "c, cpp, csharp, golang, java, javascript, kotlin, php, python,
   python3, ruby, rust, scala, swift")
