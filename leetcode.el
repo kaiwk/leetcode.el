@@ -131,7 +131,7 @@
                    (when (equal leetcode--csrftoken (aref cur 1))
                      (throw 'break (aref cur 2)))))))
     (unless token
-      (url-retrieve-synchronously leetcode--url-login)
+      (url-retrieve-synchronously leetcode--url-login nil nil 5) ; 5 sec timeout
       (setq token (leetcode--csrf-token)))
     token))
 
@@ -252,8 +252,7 @@ under that column and the column name."
              (append row '())))
           (-map #'length column-names)
           rows)))
-    (cl-map
-     #'vector #'identity
+    (vconcat
      (-zip-with
       (lambda (col size) (list col size nil))
       column-names widths))))
@@ -274,7 +273,9 @@ under that column and the column name."
                           (vector
                            (if (equal (plist-get p :status) "ac")
                                (prog1 leetcode-checkmark
-                                 (put-text-property 0 (length leetcode-checkmark) 'font-lock-face 'leetcode-checkmark-face leetcode-checkmark))
+                                 (put-text-property
+                                  0 (length leetcode-checkmark)
+                                  'font-lock-face 'leetcode-checkmark-face leetcode-checkmark))
                              " ")
                            (number-to-string (plist-get p :pos))
                            (plist-get p :title)
@@ -282,13 +283,19 @@ under that column and the column name."
                            (cond
                             ((eq 1 (plist-get p :difficulty))
                              (prog1 easy-tag
-                               (put-text-property 0 (length easy-tag) 'font-lock-face 'leetcode-easy-face easy-tag)))
+                               (put-text-property
+                                0 (length easy-tag)
+                                'font-lock-face 'leetcode-easy-face easy-tag)))
                             ((eq 2 (plist-get p :difficulty))
                              (prog1 medium-tag
-                               (put-text-property 0 (length medium-tag) 'font-lock-face 'leetcode-medium-face medium-tag)))
+                               (put-text-property
+                                0 (length medium-tag)
+                                'font-lock-face 'leetcode-medium-face medium-tag)))
                             ((eq 3 (plist-get p :difficulty))
                              (prog1 hard-tag
-                               (put-text-property 0 (length hard-tag) 'font-lock-face 'leetcode-hard-face hard-tag)))))
+                               (put-text-property
+                                0 (length hard-tag)
+                                'font-lock-face 'leetcode-hard-face hard-tag)))))
                           rows)))
                  rows))
          (headers (leetcode--make-tabulated-headers column-names rows)))
