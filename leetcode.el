@@ -125,13 +125,14 @@
   (cons "Referer" value))
 
 (defun leetcode--csrf-token ()
-  "Knock knock, please generate the csrf token."
-  (let ((token (catch 'break
-                 (dolist (cur (url-cookie-retrieve leetcode--domain leetcode--cookie-localpart-separator t))
-                   (when (equal leetcode--csrftoken (aref cur 1))
-                     (throw 'break (aref cur 2)))))))
+  (let (token)
+    (catch 'break
+      (dolist (cur (url-cookie-retrieve leetcode--domain leetcode--cookie-localpart-separator t))
+        (when (string-equal leetcode--csrftoken (aref cur 1))
+          (setq token (aref cur 2))
+          (throw 'break "Found the csrf token."))))
     (unless token
-      (url-retrieve-synchronously leetcode--url-login nil nil 5) ; 5 sec timeout
+      (url-retrieve-synchronously leetcode--url-login)
       (setq token (leetcode--csrf-token)))
     token))
 
@@ -313,7 +314,7 @@ under that column and the column name."
   "Show leetcode problems buffer."
   (interactive)
   (unless (get-buffer leetcode--buffer-name)
-    (leetcode--login leetcode--login-account leetcode--login-password)
+    (leetcode--login leetcode-account leetcode-password)
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
       (leetcode-problems-mode)
       (leetcode-problems-refresh)))
