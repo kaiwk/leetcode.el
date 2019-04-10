@@ -280,9 +280,15 @@ under that column and the column name."
                            (plist-get p :title)
                            (plist-get p :acceptance)
                            (cond
-                            ((eq 1 (plist-get p :difficulty)) (prog1 easy-tag (put-text-property 0 (length easy-tag) 'font-lock-face 'leetcode-easy-face easy-tag)))
-                            ((eq 2 (plist-get p :difficulty)) (prog1 medium-tag (put-text-property 0 (length medium-tag) 'font-lock-face 'leetcode-medium-face medium-tag)))
-                            ((eq 3 (plist-get p :difficulty)) (prog1 hard-tag (put-text-property 0 (length hard-tag) 'font-lock-face 'leetcode-hard-face hard-tag)))))
+                            ((eq 1 (plist-get p :difficulty))
+                             (prog1 easy-tag
+                               (put-text-property 0 (length easy-tag) 'font-lock-face 'leetcode-easy-face easy-tag)))
+                            ((eq 2 (plist-get p :difficulty))
+                             (prog1 medium-tag
+                               (put-text-property 0 (length medium-tag) 'font-lock-face 'leetcode-medium-face medium-tag)))
+                            ((eq 3 (plist-get p :difficulty))
+                             (prog1 hard-tag
+                               (put-text-property 0 (length hard-tag) 'font-lock-face 'leetcode-hard-face hard-tag)))))
                           rows)))
                  rows))
          (headers (leetcode--make-tabulated-headers column-names rows)))
@@ -292,7 +298,8 @@ under that column and the column name."
            (lambda (i x) (list i x))
            (-iterate '1+ 0 (length rows))
            rows)))
-  (tabulated-list-init-header))
+  (tabulated-list-init-header)
+  (tabulated-list-print t))
 
 ;;;###autoload
 (defun leetcode ()
@@ -303,8 +310,7 @@ under that column and the column name."
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
       (leetcode-problems-mode)
       (leetcode-problems-refresh)))
-  (switch-to-buffer (get-buffer leetcode--buffer-name))
-  (tabulated-list-print t))
+  (switch-to-buffer (get-buffer leetcode--buffer-name)))
 
 ;; TODO
 ;; (defun leetcode-test ()
