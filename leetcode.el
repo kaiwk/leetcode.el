@@ -69,10 +69,30 @@
     :paid-only  Boolean {t|nil}
 ")
 
-(defvar leetcode--check-mark "✓")
+(defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name "*leetcode*")
 (defconst leetcode--descr-buffer-name "*leetcode-description*")
 (defconst leetcode--submit-buffer-name "*leetcode-submit*")
+
+(defface leetcode-checkmark-face
+  '((t (:foreground "#5CB85C")))
+  "Face for `leetcode-checkmark'"
+  :group 'leetcode)
+
+(defface leetcode-easy-face
+  '((t (:foreground "#5CB85C")))
+  "Face for easy problem."
+  :group 'leetcode)
+
+(defface leetcode-medium-face
+  '((t (:foreground "#F0AD4E")))
+  "Face for medium problem."
+  :group 'leetcode)
+
+(defface leetcode-hard-face
+  '((t (:foreground "#D9534E")))
+  "Face for hard problem."
+  :group 'leetcode)
 
 ;;; Login
 ;; URL
@@ -244,21 +264,25 @@ under that column and the column name."
   (leetcode--fetch-user-and-problems)
   (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
          (rows (let ((problems (reverse (plist-get leetcode--problems :problems)))
+                     (easy-tag "easy")
+                     (medium-tag "medium")
+                     (hard-tag "hard")
                      rows)
                  (dolist (p problems)
                    (setq rows
                          (cons
                           (vector
                            (if (equal (plist-get p :status) "ac")
-                               leetcode--check-mark
+                               (prog1 leetcode-checkmark
+                                 (put-text-property 0 (length leetcode-checkmark) 'font-lock-face 'leetcode-checkmark-face leetcode-checkmark))
                              " ")
                            (number-to-string (plist-get p :pos))
                            (plist-get p :title)
                            (plist-get p :acceptance)
                            (cond
-                            ((eq 1 (plist-get p :difficulty)) "easy")
-                            ((eq 2 (plist-get p :difficulty)) "medium")
-                            ((eq 3 (plist-get p :difficulty)) "difficult")))
+                            ((eq 1 (plist-get p :difficulty)) (prog1 easy-tag (put-text-property 0 (length easy-tag) 'font-lock-face 'leetcode-easy-face easy-tag)))
+                            ((eq 2 (plist-get p :difficulty)) (prog1 medium-tag (put-text-property 0 (length medium-tag) 'font-lock-face 'leetcode-medium-face medium-tag)))
+                            ((eq 3 (plist-get p :difficulty)) (prog1 hard-tag (put-text-property 0 (length hard-tag) 'font-lock-face 'leetcode-hard-face hard-tag)))))
                           rows)))
                  rows))
          (headers (leetcode--make-tabulated-headers column-names rows)))
