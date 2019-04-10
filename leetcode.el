@@ -26,12 +26,13 @@
 
 
 (require 'json)
+(require 'url)
 (require 'url-cookie)
-
 (require 'shr)
-(require 'furl)
+
+(require 'furl) ; LeetCode login request use "Content-Type: multipart/form-data", haven't figure out how to work with url.el
 (require 'dash)
-(require 'graphql)
+(require 'graphql)                      ; Some requests of LeetCode use GraphQL
 
 
 (defcustom leetcode-account ""
@@ -70,7 +71,7 @@
 
 (defvar leetcode--check-mark "✓")
 (defconst leetcode--buffer-name "*leetcode*")
-(defconst leetcode--description-buffer-name "*leetcode-description*")
+(defconst leetcode--descr-buffer-name "*leetcode-description*")
 (defconst leetcode--submit-buffer-name "*leetcode-submit*")
 
 ;;; Login
@@ -100,19 +101,17 @@
 (defconst leetcode--api-submit (concat leetcode--base-url "/problems/%s/submit/"))
 
 (defun leetcode--referer (value)
+  "HTTP Referer Header."
   (cons "Referer" value))
 
-(defun leetcode--gen-csrf-token ()
-  "Knock knock, please generate the csrf token."
-  (url-retrieve-synchronously leetcode--url-login))
-
 (defun leetcode--csrf-token ()
+  "Knock knock, please generate the csrf token."
   (let ((token (catch 'break
                  (dolist (cur (url-cookie-retrieve leetcode--domain leetcode--cookie-localpart-separator t))
-                   (when (string-equal leetcode--csrftoken (aref cur 1))
+                   (when (equal leetcode--csrftoken (aref cur 1))
                      (throw 'break (aref cur 2)))))))
     (unless token
-      (leetcode--gen-csrf-token)
+      (url-retrieve-synchronously leetcode--url-login)
       (setq token (leetcode--csrf-token)))
     token))
 
@@ -130,7 +129,7 @@
     (furl-retrieve-synchronously leetcode--url-login)))
 
 (defun leetcode--fetch-user-and-problems ()
-  "leetcode set `leetcode--user' and `leetcode--problems', if user isn't login,
+  "Fetch `leetcode--user' and `leetcode--problems', if user isn't login,
 only `leetcode--problems' will be set."
   (let ((url-request-method "GET")
         (url-request-extra-headers (list leetcode--User-Agent
@@ -158,31 +157,29 @@ only `leetcode--problems' will be set."
                                     (status (alist-get 'status cur))
                                     (difficulty (alist-get 'level (alist-get 'difficulty cur)))
                                     (paid-only (eq (alist-get 'paid_only cur) t))
+                                    (question-id (alist-get 'question_id stat))
                                     (total-submitted (alist-get 'total_submitted stat))
                                     (total-acs (alist-get 'total_acs stat)))
                                (push
                                 (list
                                  :status status
-                                 :id (- len i)
+                                 :id question-id
                                  :pos (- len i)
                                  :title (alist-get 'question__title stat)
-                                 :acceptance (concat
-                                              (number-to-string
-                                               (/ (fround (* 1000 (/ (float total-acs) total-submitted))) 10))
-                                              "%")
+                                 :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
                                  :difficulty difficulty
                                  :paid-only paid-only)
                                 problems)))
                            problems)))))))
 
-(defun leetcode--title-slug (title)
+(defun leetcode--slugify-title (title)
   (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
          (str2 (replace-regexp-in-string "(" "" str1))
          (str3 (replace-regexp-in-string ")" "" str2))
          (res (replace-regexp-in-string "," "" str3)))
     res))
 
-(defun leetcode--graphql-params (opration &optional vars)
+(defun leetcode--problem-descr-graphql-params (opration &optional vars)
   (list
    (cons "operationName" "questionData")
    (cons "query" (graphql-query
@@ -197,24 +194,25 @@ only `leetcode--problems' will be set."
    (if vars (cons "variables" vars))))
 
 (defun leetcode--parse-problem (title)
-  "
+  "Fetch single problem.
 :likes     Number
 :dislikes  Number
 :content   String
 :topicTags String
 "
   (let* ((csrftoken (leetcode--csrf-token))
-         (title-slug (leetcode--title-slug title))
+         (slug-title (leetcode--slugify-title title))
          (url-request-method "POST")
          (url-request-extra-headers (list leetcode--User-Agent
                                           (cons "Content-Type" "application/json")))
-         (url-request-data (json-encode (leetcode--graphql-params
+         (url-request-data (json-encode (leetcode--problem-descr-graphql-params
                                          "questionData"
-                                         (list (cons "titleSlug" title-slug))))))
+                                         (list (cons "titleSlug" slug-title))))))
     (with-current-buffer (url-retrieve-synchronously leetcode--api-graphql)
       (alist-get'question (alist-get 'data (json-read))))))
 
 (defun leetcode--replace-in-buffer (regex to)
+  "Replace string in `current-buffer'."
   (with-current-buffer (current-buffer)
     (save-excursion
       (goto-char (point-min))
@@ -241,6 +239,7 @@ under that column and the column name."
       column-names widths))))
 
 (defun leetcode-problems-refresh ()
+  "Refresh problems and update `tabulated-list-entries'."
   (interactive)
   (leetcode--fetch-user-and-problems)
   (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
@@ -250,7 +249,7 @@ under that column and the column name."
                    (setq rows
                          (cons
                           (vector
-                           (if (string-equal (plist-get p :status) "ac")
+                           (if (equal (plist-get p :status) "ac")
                                leetcode--check-mark
                              " ")
                            (number-to-string (plist-get p :pos))
@@ -271,6 +270,7 @@ under that column and the column name."
            rows)))
   (tabulated-list-init-header))
 
+;;;###autoload
 (defun leetcode ()
   "Show leetcode problems buffer."
   (interactive)
@@ -288,34 +288,34 @@ under that column and the column name."
 ;;   )
 
 (defun leetcode-submit ()
-  "Submit the code. "
+  "Submit the code and popup a buffer to show result."
   (interactive)
   (let* ((code (buffer-substring-no-properties (point-min) (point-max)))
-         (title-slug (with-current-buffer (current-buffer)
+         (slug-title (with-current-buffer (current-buffer)
                        (file-name-base (buffer-name))))
          (id (catch 'break
                (dolist (p (plist-get leetcode--problems :problems))
-                 (when (string-equal title-slug (leetcode--title-slug (plist-get p :title)))
+                 (when (equal slug-title (leetcode--slugify-title (plist-get p :title)))
                    (throw 'break (plist-get p :id)))))))
     (let* ((csrftoken (leetcode--csrf-token))
            (url-request-method "POST")
            (url-request-extra-headers (list leetcode--User-Agent
-                                            (leetcode--referer (format leetcode--problems-submission title-slug))
+                                            (leetcode--referer (format leetcode--problems-submission slug-title))
                                             (cons "Content-Type" "application/json")
                                             (cons leetcode--X-CSRFToken csrftoken)))
            (url-request-data (json-encode `((lang . ,leetcode-prefer-language)
                                             (question_id . ,id)
                                             (typed_code . ,code)))))
-      (with-current-buffer (url-retrieve-synchronously (format leetcode--api-submit title-slug))
+      (with-current-buffer (url-retrieve-synchronously (format leetcode--api-submit slug-title))
         (let ((submission-id (alist-get 'submission_id (json-read)))
               (url-request-method "POST")
               (url-request-extra-headers (list leetcode--User-Agent
-                                               (leetcode--referer (format leetcode--problems-submission title-slug))
+                                               (leetcode--referer (format leetcode--problems-submission slug-title))
                                                (cons leetcode--X-CSRFToken csrftoken))))
           (let ((res (with-current-buffer (url-retrieve-synchronously (format leetcode--submission submission-id))
                        (json-read))))
             ;; poll until the state is SUCCESS
-            (while (not (string-equal (alist-get 'state res) "SUCCESS"))
+            (while (not (equal (alist-get 'state res) "SUCCESS"))
               (sleep-for 0.5)
               (setq res (with-current-buffer (url-retrieve-synchronously (format leetcode--submission submission-id))
                           (json-read))))
@@ -337,7 +337,7 @@ under that column and the column name."
               (with-current-buffer (get-buffer-create leetcode--submit-buffer-name)
                 (erase-buffer)
                 (insert (format "Status: %s\n\n" status-msg))
-                (when (string-equal status-msg "Accepted")
+                (when (equal status-msg "Accepted")
                   (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
                   (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
                 (display-buffer (current-buffer))))))))))
@@ -346,13 +346,13 @@ under that column and the column name."
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
-      (define-key map (kbd "RET") #'leetcode-show-description)
+      (define-key map (kbd "RET") #'leetcode-show-descri)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "g" #'leetcode-problems-refresh)))
   "Keymap for `leetcode-problems-mode'")
 
-(defun leetcode-show-description ()
+(defun leetcode-show-descri ()
   "Show current entry problem description. Get current entry by
 using `tabulated-list-get-entry' and use `shr-render-buffer' to
 render problem description."
@@ -366,7 +366,7 @@ render problem description."
          (dislikes (alist-get 'dislikes problem))
          (likes (alist-get 'likes problem))
          (snippets (alist-get 'codeSnippets problem))
-         (buf-name leetcode--description-buffer-name)
+         (buf-name leetcode--descr-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
     (when (get-buffer buf-name)
       (kill-buffer buf-name))
@@ -392,7 +392,9 @@ render problem description."
       (switch-to-buffer (current-buffer)))))
 
 (defvar leetcode-prefer-language "python3"
-  "LeetCode programming language.")
+  "LeetCode programming language: c, cpp, csharp, golang, java,
+  javascript, kotlin, php, python, python3, ruby, rust, scala,
+  swift")
 
 (defconst leetcode--prefer-language-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
@@ -413,25 +415,25 @@ render problem description."
         snippet)
     (catch 'break
       (dolist (s snippets)
-        (when (string-equal (alist-get 'langSlug s) leetcode-prefer-language)
+        (when (equal (alist-get 'langSlug s) leetcode-prefer-language)
           (message snippet)
           (setq snippet (alist-get 'code s))
           (throw 'break "Found target snippet."))))
     (with-current-buffer (get-buffer-create
-                          (concat (leetcode--title-slug title) suffix))
+                          (concat (leetcode--slugify-title title) suffix))
       (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
       (insert snippet)
       (switch-to-buffer-other-window (current-buffer)))))
 
 (define-derived-mode leetcode-problems-mode
-  tabulated-list-mode "LeetCode Problems"
+  tabulated-list-mode "LC Problems"
   "Major mode for browsing a list of problems."
   (setq tabulated-list-padding 2)
   (add-hook 'tabulated-list-revert-hook #'leetcode-problems-refresh nil t)
   (use-local-map leetcode-problems-mode-map))
 
 (define-derived-mode leetcode-problem-description-mode
-  special-mode "LeetCode Problem Description"
+  special-mode "LC Descri"
   "Major mode for display problem description.")
 
 (add-hook 'leetcode-problems-mode-hook 'hl-line-mode)
