@@ -33,6 +33,12 @@ You can also set your LeetCode programming language by setting
 (setq leetcode-prefer-language "python3")
 ```
 
+If it doesn't work, please check your TLS configuration. Emacs has known issue
+for its integration with GnuTLS:
+
+- https://lwn.net/Articles/759370/
+- https://www.reddit.com/r/emacs/comments/8sykl1/emacs_tls_defaults_are_downright_dangerous/
+
 # Usage
 
 1.  Execute `leetcode` command
