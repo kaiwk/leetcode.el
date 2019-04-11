@@ -4,9 +4,16 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 # Dependencies:
 
+## Emacs Library
+
 - dash
-- furl
+- request
+- request-deferred
 - graphql
+
+## External software
+
+- cURL
 
 # Installation
 
@@ -32,12 +39,6 @@ You can also set your LeetCode programming language by setting
 ```elisp
 (setq leetcode-prefer-language "python3")
 ```
-
-If it doesn't work, please check your TLS configuration. Emacs has known issue
-for its integration with GnuTLS:
-
-- https://lwn.net/Articles/759370/
-- https://www.reddit.com/r/emacs/comments/8sykl1/emacs_tls_defaults_are_downright_dangerous/
 
 # Usage
 

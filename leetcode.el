@@ -26,12 +26,11 @@
 
 
 (require 'json)
-(require 'url)
-(require 'url-cookie)
 (require 'shr)
 
-(require 'furl) ; LeetCode login request use "Content-Type: multipart/form-data", haven't figure out how to work with url.el
 (require 'dash)
+(require 'request)
+(require 'request-deferred)             ; Asynchronous HTTP request
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
 
 
@@ -96,102 +95,103 @@
 
 ;;; Login
 ;; URL
-(defconst leetcode--domain "leetcode.com")
-(defconst leetcode--base-url "https://leetcode.com")
+(defconst leetcode--domain    "leetcode.com")
+(defconst leetcode--base-url  "https://leetcode.com")
 (defconst leetcode--url-login (concat leetcode--base-url "/accounts/login"))
-(defconst leetcode--problems-submission (concat leetcode--base-url "/problems/%s/submissions/"))
-(defconst leetcode--submission (concat leetcode--base-url "/submissions/detail/%s/check/"))
-
-;; Cookie
-(defconst leetcode--csrftoken "csrftoken")
-(defconst leetcode--cookie-localpart-separator "/")
 
 ;; Header
-(defconst leetcode--User-Agent       '("User-Agent" . "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:66.0) Gecko/20100101 Firefox/66.0"))
+(defconst leetcode--User-Agent       '("User-Agent" .
+                                       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:66.0) Gecko/20100101 Firefox/66.0"))
 (defconst leetcode--X-Requested-With '("X-Requested-With" . "XMLHttpRequest"))
 (defconst leetcode--X-CSRFToken      "X-CSRFToken")
-(defconst leetcode--login-csrf-key   "csrfmiddlewaretoken")
-(defconst leetcode--login-account    "login")
-(defconst leetcode--login-password   "password")
 
 ;; API
-(defconst leetcode--api-root (concat leetcode--base-url "/api"))
-(defconst leetcode--api-all-problems (concat leetcode--api-root "/problems/all/"))
-(defconst leetcode--api-graphql (concat leetcode--base-url "/graphql"))
-(defconst leetcode--api-submit (concat leetcode--base-url "/problems/%s/submit/"))
+(defconst leetcode--api-root                (concat leetcode--base-url "/api"))
+(defconst leetcode--api-graphql             (concat leetcode--base-url "/graphql"))
+(defconst leetcode--api-all-problems        (concat leetcode--api-root "/problems/all/"))
+(defconst leetcode--api-submit              (concat leetcode--base-url "/problems/%s/submit/"))
+(defconst leetcode--api-problems-submission (concat leetcode--base-url "/problems/%s/submissions/"))
+(defconst leetcode--api-check-submission    (concat leetcode--base-url "/submissions/detail/%s/check/"))
+
 
 (defun leetcode--referer (value)
   "HTTP Referer Header."
   (cons "Referer" value))
 
 (defun leetcode--csrf-token ()
-  (let (token)
-    (catch 'break
-      (dolist (cur (url-cookie-retrieve leetcode--domain leetcode--cookie-localpart-separator t))
-        (when (string-equal leetcode--csrftoken (aref cur 1))
-          (setq token (aref cur 2))
-          (throw 'break "Found the csrf token."))))
-    (unless token
-      (url-retrieve-synchronously leetcode--url-login)
-      (setq token (leetcode--csrf-token)))
-    token))
+  (let ((token (assoc-default
+                "csrftoken"
+                (request-cookie-alist leetcode--domain "/" t))))
+    (or token
+        (progn
+          (request leetcode--url-login :sync t)
+          (leetcode--csrf-token)))))
 
 (defun leetcode--login (account password)
-  (let* ((csrftoken (leetcode--csrf-token))
-         (url-request-method "POST")
-         (url-request-extra-headers (list leetcode--User-Agent
-                                          leetcode--X-Requested-With
-                                          (leetcode--referer leetcode--url-login)
-                                          (cons leetcode--X-CSRFToken csrftoken)))
-         (furl-request-data (list (cons leetcode--login-csrf-key csrftoken)
-                                  (cons leetcode--login-account account)
-                                  (cons leetcode--login-password password)))
-         (furl-request-files t))
-    (furl-retrieve-synchronously leetcode--url-login)))
+  "Send login request and return a deferred object."
+  (let ((csrftoken (leetcode--csrf-token)))
+    (request-deferred
+     leetcode--url-login
+     :type "POST"
+     :headers `(,leetcode--User-Agent
+                ,leetcode--X-Requested-With
+                ,(leetcode--referer leetcode--url-login)
+                ,(cons leetcode--X-CSRFToken csrftoken))
+     :parser 'buffer-string
+     :files `(("csrfmiddlewaretoken" . ("" :data ,csrftoken))
+              ("login"               . ("" :data ,leetcode-account))
+              ("password"            . ("" :data ,leetcode-password)))
+     :error
+     (cl-function
+      (lambda (&rest args &key error-thrown &allow-other-keys)
+        (message "Got error: %S" error-thrown))))))
+
+(defun leetcode--set-user-and-problems (response)
+  "Set `leetcode--user' and `leetcode--problems', if user isn't
+ login, only `leetcode--problems' will be set."
+  (let ((data (request-response-data response)))
+    ;; user
+    (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name data)))
+    (setq leetcode--user (plist-put leetcode--user :solved (alist-get 'num_solved data)))
+    (setq leetcode--user (plist-put leetcode--user :easy (alist-get 'ac_easy data)))
+    (setq leetcode--user (plist-put leetcode--user :medium (alist-get 'ac_medium data)))
+    (setq leetcode--user (plist-put leetcode--user :hard (alist-get 'ac_hard data)))
+    ;; problem list
+    (setq leetcode--problems (plist-put leetcode--problems :num (alist-get 'num_total data)))
+    (setq leetcode--problems (plist-put leetcode--problems :tag "all"))
+    (setq leetcode--problems
+          (plist-put leetcode--problems :problems
+                     (let ((raw-vec (alist-get 'stat_status_pairs data))
+                           (len (plist-get leetcode--problems :num))
+                           problems)
+                       (dolist (i (number-sequence 0 (1- len)))
+                         (let* ((cur (aref raw-vec i))
+                                (stat (alist-get 'stat cur))
+                                (status (alist-get 'status cur))
+                                (difficulty (alist-get 'level (alist-get 'difficulty cur)))
+                                (paid-only (eq (alist-get 'paid_only cur) t))
+                                (question-id (alist-get 'question_id stat))
+                                (total-submitted (alist-get 'total_submitted stat))
+                                (total-acs (alist-get 'total_acs stat)))
+                           (push
+                            (list
+                             :status status
+                             :id question-id
+                             :pos (- len i)
+                             :title (alist-get 'question__title stat)
+                             :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
+                             :difficulty difficulty
+                             :paid-only paid-only)
+                            problems)))
+                       problems)))))
 
 (defun leetcode--fetch-user-and-problems ()
-  "Fetch `leetcode--user' and `leetcode--problems', if user isn't login,
-only `leetcode--problems' will be set."
-  (let ((url-request-method "GET")
-        (url-request-extra-headers (list leetcode--User-Agent
-                                         leetcode--X-Requested-With
-                                         (leetcode--referer leetcode--url-login))))
-    (with-current-buffer (url-retrieve-synchronously leetcode--api-all-problems)
-      (let ((result (json-read-object)))
-        ;; user
-        (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name result)))
-        (setq leetcode--user (plist-put leetcode--user :solved (alist-get 'num_solved result)))
-        (setq leetcode--user (plist-put leetcode--user :easy (alist-get 'ac_easy result)))
-        (setq leetcode--user (plist-put leetcode--user :medium (alist-get 'ac_medium result)))
-        (setq leetcode--user (plist-put leetcode--user :hard (alist-get 'ac_hard result)))
-        ;; problem list
-        (setq leetcode--problems (plist-put leetcode--problems :num (alist-get 'num_total result)))
-        (setq leetcode--problems (plist-put leetcode--problems :tag "all"))
-        (setq leetcode--problems
-              (plist-put leetcode--problems :problems
-                         (let ((raw-vec (alist-get 'stat_status_pairs result))
-                               (len (plist-get leetcode--problems :num))
-                               problems)
-                           (dolist (i (number-sequence 0 (1- len)))
-                             (let* ((cur (aref raw-vec i))
-                                    (stat (alist-get 'stat cur))
-                                    (status (alist-get 'status cur))
-                                    (difficulty (alist-get 'level (alist-get 'difficulty cur)))
-                                    (paid-only (eq (alist-get 'paid_only cur) t))
-                                    (question-id (alist-get 'question_id stat))
-                                    (total-submitted (alist-get 'total_submitted stat))
-                                    (total-acs (alist-get 'total_acs stat)))
-                               (push
-                                (list
-                                 :status status
-                                 :id question-id
-                                 :pos (- len i)
-                                 :title (alist-get 'question__title stat)
-                                 :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
-                                 :difficulty difficulty
-                                 :paid-only paid-only)
-                                problems)))
-                           problems)))))))
+  (request-deferred
+   leetcode--api-all-problems
+   :headers `(,leetcode--User-Agent
+              ,leetcode--X-Requested-With
+              ,(leetcode--referer leetcode--url-login))
+   :parser 'json-read))
 
 (defun leetcode--slugify-title (title)
   (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
@@ -221,16 +221,17 @@ only `leetcode--problems' will be set."
 :content   String
 :topicTags String
 "
-  (let* ((csrftoken (leetcode--csrf-token))
-         (slug-title (leetcode--slugify-title title))
-         (url-request-method "POST")
-         (url-request-extra-headers (list leetcode--User-Agent
-                                          (cons "Content-Type" "application/json")))
-         (url-request-data (json-encode (leetcode--problem-descr-graphql-params
-                                         "questionData"
-                                         (list (cons "titleSlug" slug-title))))))
-    (with-current-buffer (url-retrieve-synchronously leetcode--api-graphql)
-      (alist-get'question (alist-get 'data (json-read))))))
+  (let* ((slug-title (leetcode--slugify-title title))
+         (resp (request
+                leetcode--api-graphql
+                :type "POST"
+                :headers `(,leetcode--User-Agent
+                           ,(cons "Content-Type" "application/json"))
+                :data (json-encode (leetcode--problem-descr-graphql-params
+                                    "questionData"
+                                    (list (cons "titleSlug" slug-title))))
+                :parser 'json-read :sync t)))
+    (alist-get 'question (alist-get 'data (request-response-data resp)))))
 
 (defun leetcode--replace-in-buffer (regex to)
   "Replace string in `current-buffer'."
@@ -258,72 +259,95 @@ under that column and the column name."
       (lambda (col size) (list col size nil))
       column-names widths))))
 
+(defun leetcode-problems--rows ()
+  "Generate tabulated list rows from `leetcode--problems',
+([<checkmark> <position> <acceptance> <difficulty>] ...)"
+  (let ((problems (reverse (plist-get leetcode--problems :problems)))
+        (easy-tag "easy")
+        (medium-tag "medium")
+        (hard-tag "hard")
+        rows)
+    (dolist (p problems)
+      (setq rows
+            (cons
+             (vector
+              (if (equal (plist-get p :status) "ac")
+                  (prog1 leetcode-checkmark
+                    (put-text-property
+                     0 (length leetcode-checkmark)
+                     'font-lock-face 'leetcode-checkmark-face leetcode-checkmark))
+                " ")
+              (number-to-string (plist-get p :pos))
+              (plist-get p :title)
+              (plist-get p :acceptance)
+              (cond
+               ((eq 1 (plist-get p :difficulty))
+                (prog1 easy-tag
+                  (put-text-property
+                   0 (length easy-tag)
+                   'font-lock-face 'leetcode-easy-face easy-tag)))
+               ((eq 2 (plist-get p :difficulty))
+                (prog1 medium-tag
+                  (put-text-property
+                   0 (length medium-tag)
+                   'font-lock-face 'leetcode-medium-face medium-tag)))
+               ((eq 3 (plist-get p :difficulty))
+                (prog1 hard-tag
+                  (put-text-property
+                   0 (length hard-tag)
+                   'font-lock-face 'leetcode-hard-face hard-tag)))))
+             rows)))
+    rows))
+
 (defun leetcode-problems-refresh ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
-  (leetcode--fetch-user-and-problems)
-  (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
-         (rows (let ((problems (reverse (plist-get leetcode--problems :problems)))
-                     (easy-tag "easy")
-                     (medium-tag "medium")
-                     (hard-tag "hard")
-                     rows)
-                 (dolist (p problems)
-                   (setq rows
-                         (cons
-                          (vector
-                           (if (equal (plist-get p :status) "ac")
-                               (prog1 leetcode-checkmark
-                                 (put-text-property
-                                  0 (length leetcode-checkmark)
-                                  'font-lock-face 'leetcode-checkmark-face leetcode-checkmark))
-                             " ")
-                           (number-to-string (plist-get p :pos))
-                           (plist-get p :title)
-                           (plist-get p :acceptance)
-                           (cond
-                            ((eq 1 (plist-get p :difficulty))
-                             (prog1 easy-tag
-                               (put-text-property
-                                0 (length easy-tag)
-                                'font-lock-face 'leetcode-easy-face easy-tag)))
-                            ((eq 2 (plist-get p :difficulty))
-                             (prog1 medium-tag
-                               (put-text-property
-                                0 (length medium-tag)
-                                'font-lock-face 'leetcode-medium-face medium-tag)))
-                            ((eq 3 (plist-get p :difficulty))
-                             (prog1 hard-tag
-                               (put-text-property
-                                0 (length hard-tag)
-                                'font-lock-face 'leetcode-hard-face hard-tag)))))
-                          rows)))
-                 rows))
-         (headers (leetcode--make-tabulated-headers column-names rows)))
-    (setq tabulated-list-format headers)
-    (setq tabulated-list-entries
-          (-zip-with
-           (lambda (i x) (list i x))
-           (-iterate '1+ 0 (length rows))
-           rows)))
-  (tabulated-list-init-header)
-  (tabulated-list-print t))
+  (deferred:$
+    (leetcode--fetch-user-and-problems)
+    (deferred:nextc it
+      (lambda (response) (leetcode--set-user-and-problems response)))
+    (deferred:nextc it
+      (lambda ()
+        (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
+               (rows (leetcode-problems--rows))
+               (headers (leetcode--make-tabulated-headers column-names rows)))
+          (with-current-buffer (get-buffer-create leetcode--buffer-name)
+            (leetcode-problems-mode)
+            (setq tabulated-list-format headers)
+            (setq tabulated-list-entries
+                  (-zip-with
+                   (lambda (i x) (list i x))
+                   (-iterate '1+ 0 (length rows))
+                   rows))
+            (tabulated-list-init-header)
+            (tabulated-list-print t)))))))
 
 ;;;###autoload
 (defun leetcode ()
   "Show leetcode problems buffer."
   (interactive)
-  (unless (get-buffer leetcode--buffer-name)
-    (leetcode--login leetcode-account leetcode-password)
-    (with-current-buffer (get-buffer-create leetcode--buffer-name)
-      (leetcode-problems-mode)
-      (leetcode-problems-refresh)))
-  (switch-to-buffer (get-buffer leetcode--buffer-name)))
+  (if (get-buffer leetcode--buffer-name)
+      (switch-to-buffer leetcode--buffer-name)
+    (deferred:$
+      (leetcode--login leetcode-account leetcode-password)
+      (deferred:nextc it
+        (lambda ()
+          (deferred:nextc (leetcode-problems-refresh)
+            (lambda () (switch-to-buffer leetcode--buffer-name))))))))
 
 ;; TODO
 ;; (defun leetcode-test ()
 ;;   "Test the code using customized testcase."
 ;;   )
+
+(defun leetcode--check-submission (submission-id slug-title)
+  (request
+   (format leetcode--api-check-submission submission-id)
+   :type "POST"
+   :headers `(,leetcode--User-Agent
+              ,(leetcode--referer (format leetcode--api-problems-submission slug-title))
+              ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
+   :parser 'json-read :sync t))
 
 (defun leetcode-submit ()
   "Submit the code and popup a buffer to show result."
@@ -335,50 +359,58 @@ under that column and the column name."
                (dolist (p (plist-get leetcode--problems :problems))
                  (when (equal slug-title (leetcode--slugify-title (plist-get p :title)))
                    (throw 'break (plist-get p :id)))))))
-    (let* ((csrftoken (leetcode--csrf-token))
-           (url-request-method "POST")
-           (url-request-extra-headers (list leetcode--User-Agent
-                                            (leetcode--referer (format leetcode--problems-submission slug-title))
-                                            (cons "Content-Type" "application/json")
-                                            (cons leetcode--X-CSRFToken csrftoken)))
-           (url-request-data (json-encode `((lang . ,leetcode-prefer-language)
-                                            (question_id . ,id)
-                                            (typed_code . ,code)))))
-      (with-current-buffer (url-retrieve-synchronously (format leetcode--api-submit slug-title))
-        (let ((submission-id (alist-get 'submission_id (json-read)))
-              (url-request-method "POST")
-              (url-request-extra-headers (list leetcode--User-Agent
-                                               (leetcode--referer (format leetcode--problems-submission slug-title))
-                                               (cons leetcode--X-CSRFToken csrftoken))))
-          (let ((res (with-current-buffer (url-retrieve-synchronously (format leetcode--submission submission-id))
-                       (json-read))))
-            ;; poll until the state is SUCCESS
-            (while (not (equal (alist-get 'state res) "SUCCESS"))
-              (sleep-for 0.5)
-              (setq res (with-current-buffer (url-retrieve-synchronously (format leetcode--submission submission-id))
-                          (json-read))))
-            (let ((runtime (alist-get 'status_runtime res))
-                  (memory (alist-get 'status_memory res))
-                  (runtime-perc (alist-get 'runtime_percentile res))
-                  (memory-perc (alist-get 'memory_percentile res))
-                  (total-correct (alist-get 'total_correct res))
-                  (total-testcases (alist-get 'total_testcase res))
-                  (status-msg (alist-get 'status_msg res))
-                  (lang (alist-get 'pretty_lang res))
-                  (display-buffer-alist (cons `(,leetcode--submit-buffer-name
-                                                (display-buffer-reuse-window
-                                                 display-buffer-in-side-window)
-                                                (reusable-frames . visible)
-                                                (side . bottom)
-                                                (window-height . 0.3))
-                                              display-buffer-alist)))
-              (with-current-buffer (get-buffer-create leetcode--submit-buffer-name)
-                (erase-buffer)
-                (insert (format "Status: %s\n\n" status-msg))
-                (when (equal status-msg "Accepted")
-                  (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
-                  (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
-                (display-buffer (current-buffer))))))))))
+    (deferred:$
+      (request-deferred
+       (format leetcode--api-submit slug-title)
+       :type "POST"
+       :headers `(,leetcode--User-Agent
+                  ,(leetcode--referer (format leetcode--api-problems-submission slug-title))
+                  ,(cons "Content-Type" "application/json")
+                  ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
+       :data (json-encode `((lang . ,leetcode-prefer-language)
+                            (question_id . ,id)
+                            (typed_code . ,code)))
+       :parser 'json-read)
+      (deferred:nextc it
+        (lambda (resp)
+          (alist-get 'submission_id (request-response-data resp))))
+      (deferred:nextc it
+        (lambda (submission-id)
+          (with-local-quit
+            (let* ((resp (leetcode--check-submission submission-id slug-title))
+                   (data (request-response-data resp)))
+              (while (not (equal (alist-get 'state data) "SUCCESS"))
+                ;; poll until the state is SUCCESS
+                (sleep-for 0.5)
+                (setq resp (leetcode--check-submission submission-id slug-title))
+                (setq data (request-response-data resp)))
+              data))))
+      (deferred:nextc it
+        (lambda (res)
+          (let ((submission-id (alist-get 'submission_id res))
+                (runtime (alist-get 'status_runtime res))
+                (memory (alist-get 'status_memory res))
+                (runtime-perc (alist-get 'runtime_percentile res))
+                (memory-perc (alist-get 'memory_percentile res))
+                (total-correct (alist-get 'total_correct res))
+                (total-testcases (alist-get 'total_testcase res))
+                (status-msg (alist-get 'status_msg res))
+                (lang (alist-get 'pretty_lang res))
+                (display-buffer-alist
+                 (cons `(,leetcode--submit-buffer-name
+                         (display-buffer-reuse-window
+                          display-buffer-in-side-window)
+                         (reusable-frames . visible)
+                         (side . bottom)
+                         (window-height . 0.3))
+                       display-buffer-alist)))
+            (with-current-buffer (get-buffer-create leetcode--submit-buffer-name)
+              (erase-buffer)
+              (insert (format "Status: %s\n\n" status-msg))
+              (when (equal status-msg "Accepted")
+                (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
+                (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
+              (display-buffer (current-buffer)))))))))
 
 (defvar leetcode-problems-mode-map
   (let ((map (make-sparse-keymap)))
