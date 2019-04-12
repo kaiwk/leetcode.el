@@ -24,7 +24,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 # Configuration
 
-You need to set your LeetCode account and password:
+You can set your LeetCode account and password:
 
 ```elisp
 (setq leetcode-account "your-account")
@@ -32,7 +32,8 @@ You need to set your LeetCode account and password:
 ```
 
 Put password into your emacs config is not a good idea, you may want to read
-your password from somewhere else.
+your password from somewhere else. Or you can ignore this setting, a prompt will
+be given.
 
 You can also set your LeetCode programming language by setting
 `leetcode-prefer-language`:
