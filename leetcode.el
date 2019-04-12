@@ -137,27 +137,38 @@
 
 (defun leetcode--login (account password)
   "Send login request and return a deferred object."
-  (let ((csrftoken (leetcode--csrf-token)))
-    (request-deferred
-     leetcode--url-login
-     :type "POST"
-     :headers `(,leetcode--User-Agent
-                ,leetcode--X-Requested-With
-                ,(leetcode--referer leetcode--url-login)
-                ,(cons leetcode--X-CSRFToken csrftoken))
-     :parser 'buffer-string
-     :files `(("csrfmiddlewaretoken" . ("" :data ,csrftoken))
-              ("login"               . ("" :data ,leetcode-account))
-              ("password"            . ("" :data ,leetcode-password)))
-     :error
-     (cl-function
-      (lambda (&rest args &key error-thrown &allow-other-keys)
-        (message "Got error: %S" error-thrown))))))
+  (when (or (string-empty-p account) (string-empty-p password))
+    (setq account (read-string "account: "))
+    (setq password (read-string "password: ")))
+  (leetcode--global-loading-mode t)
+  (request-deferred
+   leetcode--url-login
+   :type "POST"
+   :headers `(,leetcode--User-Agent
+              ,leetcode--X-Requested-With
+              ,(leetcode--referer leetcode--url-login)
+              ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
+   :parser 'buffer-string
+   :files `(("csrfmiddlewaretoken" . ("" :data ,(leetcode--csrf-token)))
+            ("login"               . ("" :data ,account))
+            ("password"            . ("" :data ,password)))
+   :success
+   (cl-function (lambda (&key data &allow-other-keys)
+                  (leetcode--global-loading-mode -1)))
+   :error
+   (cl-function
+    (lambda (&rest args &key error-thrown &allow-other-keys)
+      (leetcode--global-loading-mode -1)
+      (message "Login failed: %S" error-thrown)))))
 
 (defun leetcode--login-p ()
-  (not
-   (string-empty-p
-    (plist-get leetcode--user :username))))
+  (let ((username (plist-get leetcode--user :username)))
+    (and username
+         (not (string-empty-p username))
+         (assoc-default
+          "LEETCODE_SESSION"
+          (request-cookie-alist
+           (concat "." leetcode--domain) "/" t)))))
 
 (defun leetcode--set-user-and-problems (response)
   "Set `leetcode--user' and `leetcode--problems', if user isn't
@@ -343,7 +354,6 @@ under that column and the column name."
   (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
-    (leetcode--global-loading-mode t)
     (if (leetcode--login-p)
         (deferred:$
           (deferred:nextc (leetcode-problems-refresh)
