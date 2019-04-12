@@ -114,9 +114,12 @@
 (defconst leetcode--api-root                (concat leetcode--base-url "/api"))
 (defconst leetcode--api-graphql             (concat leetcode--base-url "/graphql"))
 (defconst leetcode--api-all-problems        (concat leetcode--api-root "/problems/all/"))
+;; submit
 (defconst leetcode--api-submit              (concat leetcode--base-url "/problems/%s/submit/"))
 (defconst leetcode--api-problems-submission (concat leetcode--base-url "/problems/%s/submissions/"))
 (defconst leetcode--api-check-submission    (concat leetcode--base-url "/submissions/detail/%s/check/"))
+;; try testcase
+(defconst leetcode--api-try                 (concat leetcode--base-url "/problems/%s/interpret_solution/"))
 
 
 (defun leetcode--referer (value)
@@ -368,6 +371,12 @@ under that column and the column name."
               ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
    :parser 'json-read :sync t))
 
+(defun leetcode--display-result (buffer &optional alist)
+  (split-window-below -10)
+  (let ((window (nth 1 (window-list))))
+    (set-window-buffer window buffer)
+    window))
+
 (defun leetcode-submit ()
   "Submit the code and popup a buffer to show result."
   (interactive)
@@ -419,10 +428,8 @@ under that column and the column name."
                 (display-buffer-alist
                  (cons `(,leetcode--submit-buffer-name
                          (display-buffer-reuse-window
-                          display-buffer-in-side-window)
-                         (reusable-frames . visible)
-                         (side . bottom)
-                         (window-height . 0.3))
+                          leetcode--display-result)
+                         (reusable-frames . visible))
                        display-buffer-alist)))
             (with-current-buffer (get-buffer-create leetcode--submit-buffer-name)
               (erase-buffer)
