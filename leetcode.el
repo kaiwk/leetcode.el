@@ -151,6 +151,11 @@
       (lambda (&rest args &key error-thrown &allow-other-keys)
         (message "Got error: %S" error-thrown))))))
 
+(defun leetcode--login-p ()
+  (not
+   (string-empty-p
+    (plist-get leetcode--user :username))))
+
 (defun leetcode--set-user-and-problems (response)
   "Set `leetcode--user' and `leetcode--problems', if user isn't
  login, only `leetcode--problems' will be set."
@@ -307,6 +312,7 @@ under that column and the column name."
 (defun leetcode-problems-refresh ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
+  (leetcode--global-loading-mode t)
   (deferred:$
     (leetcode--fetch-user-and-problems)
     (deferred:nextc it
@@ -325,7 +331,8 @@ under that column and the column name."
                    (-iterate '1+ 0 (length rows))
                    rows))
             (tabulated-list-init-header)
-            (tabulated-list-print t)))))))
+            (tabulated-list-print t)
+            (leetcode--global-loading-mode -1)))))))
 
 ;;;###autoload
 (defun leetcode ()
@@ -333,16 +340,22 @@ under that column and the column name."
   (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
-    (deferred:$
-      (leetcode--login leetcode-account leetcode-password)
-      (deferred:nextc it
-        (lambda ()
+    (leetcode--global-loading-mode t)
+    (if (leetcode--login-p)
+        (deferred:$
           (deferred:nextc (leetcode-problems-refresh)
             (lambda ()
-              (switch-to-buffer leetcode--buffer-name))))))))
+              (switch-to-buffer leetcode--buffer-name))))
+      (deferred:$
+        (leetcode--login leetcode-account leetcode-password)
+        (deferred:nextc it
+          (lambda ()
+            (deferred:nextc (leetcode-problems-refresh)
+              (lambda ()
+                (switch-to-buffer leetcode--buffer-name)))))))))
 
 ;; TODO
-;; (defun leetcode-test ()
+;; (defun leetcode-try ()
 ;;   "Test the code using customized testcase."
 ;;   )
 
@@ -365,6 +378,7 @@ under that column and the column name."
                (dolist (p (plist-get leetcode--problems :problems))
                  (when (equal slug-title (leetcode--slugify-title (plist-get p :title)))
                    (throw 'break (plist-get p :id)))))))
+    (leetcode--global-loading-mode t)
     (deferred:$
       (request-deferred
        (format leetcode--api-submit slug-title)
@@ -416,7 +430,8 @@ under that column and the column name."
               (when (equal status-msg "Accepted")
                 (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
                 (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
-              (display-buffer (current-buffer)))))))))
+              (display-buffer (current-buffer))
+              (leetcode--global-loading-mode -1))))))))
 
 (defun leetcode-show-descri ()
   "Show current entry problem description. Get current entry by
@@ -498,7 +513,8 @@ render problem description."
       (define-key map (kbd "RET") #'leetcode-show-descri)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
-      (define-key map "g" #'leetcode-problems-refresh)))
+      (define-key map "g" #'leetcode-problems-refresh)
+      (define-key map "q" #'quit-window)))
   "Keymap for `leetcode--problems-mode'")
 
 (define-derived-mode leetcode--problems-mode
@@ -532,7 +548,7 @@ render problem description."
 (defun leetcode--turn-on-loading-mode ()
   (leetcode--loading-mode t))
 
-(define-global-minor-mode leetcode--loading-global-mode
+(define-global-minor-mode leetcode--global-loading-mode
   leetcode--loading-mode leetcode--turn-on-loading-mode
   :group 'leetcode)
 
