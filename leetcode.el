@@ -33,6 +33,13 @@
 (require 'request-deferred)             ; Asynchronous HTTP request
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
 
+(require 'spinner)
+
+
+(defgroup leetcode nil
+  "A Leetcode client."
+  :prefix 'leetcode-
+  :group 'tools)
 
 (defcustom leetcode-account ""
   "leetcode login account."
@@ -50,8 +57,7 @@
 :solved   Number
 :easy     Number
 :medium   Number
-:hard     Number
-")
+:hard     Number")
 
 (defvar leetcode--problems nil
   "Problems info with a list of problem object.
@@ -65,8 +71,7 @@
     :title      String
     :acceptance String
     :difficulty Number {1,2,3}
-    :paid-only  Boolean {t|nil}
-")
+    :paid-only  Boolean {t|nil}")
 
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name "*leetcode*")
@@ -259,7 +264,7 @@ under that column and the column name."
       (lambda (col size) (list col size nil))
       column-names widths))))
 
-(defun leetcode-problems--rows ()
+(defun leetcode--problems-rows ()
   "Generate tabulated list rows from `leetcode--problems',
 ([<checkmark> <position> <acceptance> <difficulty>] ...)"
   (let ((problems (reverse (plist-get leetcode--problems :problems)))
@@ -309,10 +314,10 @@ under that column and the column name."
     (deferred:nextc it
       (lambda ()
         (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
-               (rows (leetcode-problems--rows))
+               (rows (leetcode--problems-rows))
                (headers (leetcode--make-tabulated-headers column-names rows)))
           (with-current-buffer (get-buffer-create leetcode--buffer-name)
-            (leetcode-problems-mode)
+            (leetcode--problems-mode)
             (setq tabulated-list-format headers)
             (setq tabulated-list-entries
                   (-zip-with
@@ -333,7 +338,8 @@ under that column and the column name."
       (deferred:nextc it
         (lambda ()
           (deferred:nextc (leetcode-problems-refresh)
-            (lambda () (switch-to-buffer leetcode--buffer-name))))))))
+            (lambda ()
+              (switch-to-buffer leetcode--buffer-name))))))))
 
 ;; TODO
 ;; (defun leetcode-test ()
@@ -412,16 +418,6 @@ under that column and the column name."
                 (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
               (display-buffer (current-buffer)))))))))
 
-(defvar leetcode-problems-mode-map
-  (let ((map (make-sparse-keymap)))
-    (prog1 map
-      (suppress-keymap map)
-      (define-key map (kbd "RET") #'leetcode-show-descri)
-      (define-key map "n" #'next-line)
-      (define-key map "p" #'previous-line)
-      (define-key map "g" #'leetcode-problems-refresh)))
-  "Keymap for `leetcode-problems-mode'")
-
 (defun leetcode-show-descri ()
   "Show current entry problem description. Get current entry by
 using `tabulated-list-get-entry' and use `shr-render-buffer' to
@@ -455,10 +451,10 @@ render problem description."
         (insert (make-string 4 ?\s))
         (insert-text-button "solve it"
                             'action (lambda (btn)
-                                      (leetcode-start-coding title (append snippets nil)))
+                                      (leetcode--start-coding title (append snippets nil)))
                             'help-echo "solve the problem."))
       (rename-buffer buf-name)
-      (leetcode-problem-description-mode)
+      (leetcode--problem-description-mode)
       (switch-to-buffer (current-buffer)))))
 
 (defvar leetcode-prefer-language "python3"
@@ -475,7 +471,7 @@ render problem description."
   "c, cpp, csharp, golang, java, javascript, kotlin, php, python,
   python3, ruby, rust, scala, swift")
 
-(defun leetcode-start-coding (title snippets)
+(defun leetcode--start-coding (title snippets)
   "Create a buffer which is not associated with any file for
   coding. It will choose major mode by `leetcode-prefer-language'
   and `auto-mode-alist'."
@@ -495,18 +491,50 @@ render problem description."
       (insert snippet)
       (switch-to-buffer-other-window (current-buffer)))))
 
-(define-derived-mode leetcode-problems-mode
+(defvar leetcode-problems-mode-map
+  (let ((map (make-sparse-keymap)))
+    (prog1 map
+      (suppress-keymap map)
+      (define-key map (kbd "RET") #'leetcode-show-descri)
+      (define-key map "n" #'next-line)
+      (define-key map "p" #'previous-line)
+      (define-key map "g" #'leetcode-problems-refresh)))
+  "Keymap for `leetcode--problems-mode'")
+
+(define-derived-mode leetcode--problems-mode
   tabulated-list-mode "LC Problems"
   "Major mode for browsing a list of problems."
   (setq tabulated-list-padding 2)
   (add-hook 'tabulated-list-revert-hook #'leetcode-problems-refresh nil t)
-  (use-local-map leetcode-problems-mode-map))
+  (use-local-map leetcode-problems-mode-map)
+  :group 'leetcode)
 
-(define-derived-mode leetcode-problem-description-mode
+(add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
+
+(define-derived-mode leetcode--problem-description-mode
   special-mode "LC Descri"
-  "Major mode for display problem description.")
+  "Major mode for display problem description."
+  :group 'leetcode)
 
-(add-hook 'leetcode-problems-mode-hook 'hl-line-mode)
+;;; Use spinner.el to show progress indicator
+(defvar leetcode--spinner (spinner-create 'progress-bar-filled))
+(defconst leetcode--loading-lighter
+  '(" [LeetCode" (:eval (spinner-print leetcode--spinner)) "]"))
+
+(define-minor-mode leetcode--loading-mode
+  "Minor mode to showing leetcode loading status."
+  :lighter leetcode--loading-lighter
+  :group 'leetcode
+  (if leetcode--loading-mode
+      (spinner-start leetcode--spinner)
+    (spinner-stop leetcode--spinner)))
+
+(defun leetcode--turn-on-loading-mode ()
+  (leetcode--loading-mode t))
+
+(define-global-minor-mode leetcode--loading-global-mode
+  leetcode--loading-mode leetcode--turn-on-loading-mode
+  :group 'leetcode)
 
 (provide 'leetcode)
 ;;; leetcode.el ends here

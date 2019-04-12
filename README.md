@@ -2,14 +2,15 @@
 
 LeetCode brings you offer, and now Emacs brings you LeetCode!
 
-# Dependencies:
+# Dependencies
 
 ## Emacs Library
 
-- dash
-- request
-- request-deferred
-- graphql
+- dash.el
+- request.el
+- request-deferred.el
+- graphql.el
+- spinner.el
 
 ## External software
 
