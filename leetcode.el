@@ -476,6 +476,8 @@ render problem description."
       (insert (alist-get 'content problem))
       (setq shr-current-font t)
       (leetcode--replace-in-buffer "" "")
+      ;; NOTE: shr.el can't render "https://xxxx.png", now we use "http"
+      (leetcode--replace-in-buffer "https" "http")
       (shr-render-buffer (current-buffer)))
     (with-current-buffer "*html*"
       (save-match-data
