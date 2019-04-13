@@ -581,7 +581,7 @@ coding. It will choose major mode by
                          leetcode--display-result)
                         (reusable-frames . visible))))))
 
-(defvar leetcode-problems-mode-map
+(defvar leetcode--problems-mode-map
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
@@ -597,10 +597,16 @@ coding. It will choose major mode by
   "Major mode for browsing a list of problems."
   (setq tabulated-list-padding 2)
   (add-hook 'tabulated-list-revert-hook #'leetcode-problems-refresh nil t)
-  (use-local-map leetcode-problems-mode-map)
   :group 'leetcode)
 
 (add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
+
+(defvar leetcode--problem-description-mode-map
+  (let ((map (make-sparse-keymap)))
+    (prog1 map
+      (suppress-keymap map)
+      (define-key map "n" #'next-line)
+      (define-key map "p" #'previous-line))))
 
 (define-derived-mode leetcode--problem-description-mode
   special-mode "LC Descri"
