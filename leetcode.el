@@ -74,9 +74,10 @@
     :paid-only  Boolean {t|nil}")
 
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
-(defconst leetcode--buffer-name "*leetcode*")
-(defconst leetcode--descr-buffer-name "*leetcode-description*")
-(defconst leetcode--submit-buffer-name "*leetcode-submit*")
+(defconst leetcode--buffer-name          "*leetcode*")
+(defconst leetcode--descr-buffer-name    "*leetcode-description*")
+(defconst leetcode--testcase-buffer-name "*leetcode-testcase*")
+(defconst leetcode--result-buffer-name   "*leetcode-result*")
 
 (defface leetcode-checkmark-face
   '((t (:foreground "#5CB85C")))
@@ -368,9 +369,10 @@ under that column and the column name."
                 (switch-to-buffer leetcode--buffer-name)))))))))
 
 ;; TODO
-;; (defun leetcode-try ()
-;;   "Test the code using customized testcase."
-;;   )
+(defun leetcode-try ()
+  "Test the code using customized testcase."
+
+  )
 
 (defun leetcode--check-submission (submission-id slug-title)
   (request
@@ -381,9 +383,52 @@ under that column and the column name."
               ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
    :parser 'json-read :sync t))
 
+(defun leetcode--solving-layout ()
+  "Specify layout for solving problem.
++---------------+----------------+
+|               |                |
+|               |                |
+|               |  Description   |
+|               |                |
+|               |                |
+|     Code      +----------------+
+|               |   Customize    |
+|               |   Testcases    |
+|               +----------------+
+|               |Submit/Testcases|
+|               |    Result      |
++---------------+----------------+"
+  (delete-other-windows)
+  (split-window-horizontally)
+  (other-window 1)
+  (split-window-below)
+  (other-window 1)
+  (split-window-below)
+  (other-window -1)
+  (other-window -1))
+
 (defun leetcode--display-result (buffer &optional alist)
-  (split-window-below -10)
-  (let ((window (nth 1 (window-list))))
+  (let ((window (window-next-sibling
+                 (window-next-sibling
+                  (window-top-child
+                   (window-next-sibling
+                    (window-left-child
+                     (frame-root-window))))))))
+    (set-window-buffer window buffer)
+    window))
+
+(defun leetcode--display-testcase (buffer &optional alist)
+  (let ((window (window-next-sibling
+                 (window-top-child
+                  (window-next-sibling
+                   (window-left-child
+                    (frame-root-window)))))))
+    (set-window-buffer window buffer)
+    window))
+
+(defun leetcode--display-code (buffer &optional alist)
+  "Display code buffer in the left."
+  (let ((window (window-left-child (frame-root-window))))
     (set-window-buffer window buffer)
     window))
 
@@ -397,7 +442,7 @@ under that column and the column name."
                (dolist (p (plist-get leetcode--problems :problems))
                  (when (equal slug-title (leetcode--slugify-title (plist-get p :title)))
                    (throw 'break (plist-get p :id)))))))
-    (leetcode--global-loading-mode t)
+    (leetcode--loading-mode t)
     (deferred:$
       (request-deferred
        (format leetcode--api-submit slug-title)
@@ -434,21 +479,18 @@ under that column and the column name."
                 (total-correct (alist-get 'total_correct res))
                 (total-testcases (alist-get 'total_testcase res))
                 (status-msg (alist-get 'status_msg res))
-                (lang (alist-get 'pretty_lang res))
-                (display-buffer-alist
-                 (cons `(,leetcode--submit-buffer-name
-                         (display-buffer-reuse-window
-                          leetcode--display-result)
-                         (reusable-frames . visible))
-                       display-buffer-alist)))
-            (with-current-buffer (get-buffer-create leetcode--submit-buffer-name)
+                (lang (alist-get 'pretty_lang res)))
+            (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
               (erase-buffer)
               (insert (format "Status: %s\n\n" status-msg))
               (when (equal status-msg "Accepted")
                 (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
                 (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
-              (display-buffer (current-buffer))
-              (leetcode--global-loading-mode -1))))))))
+              (display-buffer (current-buffer)
+                              '((display-buffer-reuse-window
+                                 leetcode--display-result)
+                                (reusable-frames . visible)))
+              (leetcode--loading-mode -1))))))))
 
 (defun leetcode-show-descri ()
   "Show current entry problem description. Get current entry by
@@ -507,8 +549,9 @@ render problem description."
 
 (defun leetcode--start-coding (title snippets)
   "Create a buffer which is not associated with any file for
-  coding. It will choose major mode by `leetcode-prefer-language'
-  and `auto-mode-alist'."
+coding. It will choose major mode by
+`leetcode-prefer-language'and `auto-mode-alist'."
+  (leetcode--solving-layout)
   (let ((suffix (assoc-default
                  leetcode-prefer-language
                  leetcode--prefer-language-suffixes))
@@ -516,14 +559,27 @@ render problem description."
     (catch 'break
       (dolist (s snippets)
         (when (equal (alist-get 'langSlug s) leetcode-prefer-language)
-          (message snippet)
           (setq snippet (alist-get 'code s))
           (throw 'break "Found target snippet."))))
     (with-current-buffer (get-buffer-create
                           (concat (leetcode--slugify-title title) suffix))
       (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
       (insert snippet)
-      (switch-to-buffer-other-window (current-buffer)))))
+      (display-buffer (current-buffer)
+                      '((display-buffer-reuse-window
+                         leetcode--display-code)
+                        (reusable-frames . visible))))
+    (with-current-buffer (get-buffer-create leetcode--testcase-buffer-name)
+      ;; TODO add default testcases
+      (display-buffer (current-buffer)
+                      '((display-buffer-reuse-window
+                         leetcode--display-testcase)
+                        (reusable-frames . visible))))
+    (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
+      (display-buffer (current-buffer)
+                      '((display-buffer-reuse-window
+                         leetcode--display-result)
+                        (reusable-frames . visible))))))
 
 (defvar leetcode-problems-mode-map
   (let ((map (make-sparse-keymap)))
