@@ -235,6 +235,7 @@
                                         likes
                                         dislikes
                                         content
+                                        sampleTestCase
                                         (topicTags slug)
                                         (codeSnippets langSlug code)))))
    (if vars (cons "variables" vars))))
@@ -368,11 +369,29 @@ under that column and the column name."
               (lambda ()
                 (switch-to-buffer leetcode--buffer-name)))))))))
 
-;; TODO
-(defun leetcode-try ()
-  "Test the code using customized testcase."
+(defun leetcode--buffer-content (buf)
+  (with-current-buffer buf
+    (buffer-substring-no-properties
+     (point-min) (point-max))))
 
-  )
+;; TODO
+(defun leetcode-try (title question-id)
+  "Test the code using customized testcase."
+  (let ((testcase-buf (get-buffer leetcode--testcase-buffer-name))
+        (code-buf (get-buffer (leetcode--get-code-buffer-name title))))
+    (if (and testcase-buf code-buf)
+        (request-deferred
+         (format leetcode--api-try (leetcode--slugify-title title))
+         :headers `(leetcode--User-Agent
+                    ("Content-Type" . "application/json")
+                    ("Referer" . ,(leetcode--referer (format leetcode--api-problems-submission title)))
+                    (leetcode--X-CSRFToken . ,(leetcode--csrf-token)))
+         :data (json-encode `((data_input . ,(leetcode--buffer-content testcase-buf))
+                              (judge_type . "small")
+                              (lang . ,leetcode-prefer-language)
+                              (question_id . ,question-id)
+                              (typed_code . ,(leetcode--buffer-content code-buf)))))
+      (throw 'no-buffer "No testcase buffer and code buffer."))))
 
 (defun leetcode--check-submission (submission-id slug-title)
   (request
@@ -435,7 +454,7 @@ under that column and the column name."
 (defun leetcode-submit ()
   "Submit the code and popup a buffer to show result."
   (interactive)
-  (let* ((code (buffer-substring-no-properties (point-min) (point-max)))
+  (let* ((code (leetcode--buffer-content (current-buffer)))
          (slug-title (with-current-buffer (current-buffer)
                        (file-name-base (buffer-name))))
          (id (catch 'break
@@ -506,6 +525,7 @@ render problem description."
          (dislikes (alist-get 'dislikes problem))
          (likes (alist-get 'likes problem))
          (snippets (alist-get 'codeSnippets problem))
+         (testcase (alist-get 'sampleTestCase problem))
          (buf-name leetcode--descr-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
     (when (get-buffer buf-name)
@@ -527,7 +547,7 @@ render problem description."
         (insert (make-string 4 ?\s))
         (insert-text-button "solve it"
                             'action (lambda (btn)
-                                      (leetcode--start-coding title (append snippets nil)))
+                                      (leetcode--start-coding title (append snippets nil) testcase))
                             'help-echo "solve the problem."))
       (rename-buffer buf-name)
       (leetcode--problem-description-mode)
@@ -547,39 +567,46 @@ render problem description."
   "c, cpp, csharp, golang, java, javascript, kotlin, php, python,
   python3, ruby, rust, scala, swift")
 
-(defun leetcode--start-coding (title snippets)
+(defun leetcode--get-code-buffer-name (title)
+  (let ((suffix (assoc-default
+                 leetcode-prefer-language
+                 leetcode--prefer-language-suffixes)))
+    (concat (leetcode--slugify-title title) suffix)))
+
+(defun leetcode--start-coding (title snippets testcase)
   "Create a buffer which is not associated with any file for
 coding. It will choose major mode by
 `leetcode-prefer-language'and `auto-mode-alist'."
   (leetcode--solving-layout)
-  (let ((suffix (assoc-default
+  (let ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
+        (suffix (assoc-default
                  leetcode-prefer-language
-                 leetcode--prefer-language-suffixes))
-        snippet)
-    (catch 'break
-      (dolist (s snippets)
-        (when (equal (alist-get 'langSlug s) leetcode-prefer-language)
-          (setq snippet (alist-get 'code s))
-          (throw 'break "Found target snippet."))))
-    (with-current-buffer (get-buffer-create
-                          (concat (leetcode--slugify-title title) suffix))
-      (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-      (insert snippet)
-      (display-buffer (current-buffer)
-                      '((display-buffer-reuse-window
-                         leetcode--display-code)
-                        (reusable-frames . visible))))
-    (with-current-buffer (get-buffer-create leetcode--testcase-buffer-name)
-      ;; TODO add default testcases
-      (display-buffer (current-buffer)
-                      '((display-buffer-reuse-window
-                         leetcode--display-testcase)
-                        (reusable-frames . visible))))
-    (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
-      (display-buffer (current-buffer)
-                      '((display-buffer-reuse-window
-                         leetcode--display-result)
-                        (reusable-frames . visible))))))
+                 leetcode--prefer-language-suffixes)))
+    (unless code-buf
+      (with-current-buffer (get-buffer-create (leetcode--get-code-buffer-name title))
+        (setq code-buf (current-buffer))
+        (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
+        (catch 'break
+          (dolist (s snippets)
+            (when (equal (alist-get 'langSlug s) leetcode-prefer-language)
+              (insert (alist-get 'code s))
+              (throw 'break "Found target snippet."))))))
+    (display-buffer code-buf
+                    '((display-buffer-reuse-window
+                       leetcode--display-code)
+                      (reusable-frames . visible))))
+  (with-current-buffer (get-buffer-create leetcode--testcase-buffer-name)
+    (erase-buffer)
+    (insert testcase)
+    (display-buffer (current-buffer)
+                    '((display-buffer-reuse-window
+                       leetcode--display-testcase)
+                      (reusable-frames . visible))))
+  (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
+    (display-buffer (current-buffer)
+                    '((display-buffer-reuse-window
+                       leetcode--display-result)
+                      (reusable-frames . visible)))))
 
 (defvar leetcode--problems-mode-map
   (let ((map (make-sparse-keymap)))
