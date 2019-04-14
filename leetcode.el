@@ -160,7 +160,7 @@
    (cl-function
     (lambda (&rest args &key error-thrown &allow-other-keys)
       (leetcode--global-loading-mode -1)
-      (message "Login failed: %S" error-thrown)))))
+      (message "LeetCode Login ERROR: %S" error-thrown)))))
 
 (defun leetcode--login-p ()
   (let ((username (plist-get leetcode--user :username)))
@@ -374,24 +374,76 @@ under that column and the column name."
     (buffer-substring-no-properties
      (point-min) (point-max))))
 
-;; TODO
-(defun leetcode-try (title question-id)
+(defun leetcode-try ()
   "Test the code using customized testcase."
-  (let ((testcase-buf (get-buffer leetcode--testcase-buffer-name))
-        (code-buf (get-buffer (leetcode--get-code-buffer-name title))))
-    (if (and testcase-buf code-buf)
-        (request-deferred
-         (format leetcode--api-try (leetcode--slugify-title title))
-         :headers `(leetcode--User-Agent
-                    ("Content-Type" . "application/json")
-                    ("Referer" . ,(leetcode--referer (format leetcode--api-problems-submission title)))
-                    (leetcode--X-CSRFToken . ,(leetcode--csrf-token)))
-         :data (json-encode `((data_input . ,(leetcode--buffer-content testcase-buf))
-                              (judge_type . "small")
-                              (lang . ,leetcode-prefer-language)
-                              (question_id . ,question-id)
-                              (typed_code . ,(leetcode--buffer-content code-buf)))))
-      (throw 'no-buffer "No testcase buffer and code buffer."))))
+  (interactive)
+  (let* ((code-buf (current-buffer))
+         (testcase-buf (get-buffer leetcode--testcase-buffer-name))
+         (slug-title (with-current-buffer code-buf
+                       (file-name-base (buffer-name))))
+         (id (plist-get (-find (lambda (p)
+                                 (equal slug-title
+                                        (leetcode--slugify-title
+                                         (plist-get p :title))))
+                               (plist-get leetcode--problems :problems))
+                        :id)))
+    (leetcode--loading-mode t)
+    (deferred:$
+      (if testcase-buf
+          (request-deferred
+           (format leetcode--api-try (leetcode--slugify-title slug-title))
+           :headers `(,leetcode--User-Agent
+                      ("Content-Type" . "application/json")
+                      ,(leetcode--referer (format
+                                           leetcode--api-problems-submission
+                                           slug-title))
+                      ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
+           :data (json-encode
+                  `((data_input . ,(leetcode--buffer-content testcase-buf))
+                    (judge_type . "small")
+                    (lang . ,leetcode-prefer-language)
+                    (question_id . ,id)
+                    (typed_code . ,(leetcode--buffer-content code-buf))))
+           :parser 'json-read
+           :error
+           (cl-function
+            (lambda (&rest args &key error-thrown &allow-other-keys)
+              (message "LeetCode Try ERROR: %S" error-thrown))))
+        (throw 'no-buffer "No testcase buffer and code buffer."))
+      (deferred:nextc it
+        (lambda (resp)
+          (let* ((data (request-response-data resp))
+                 (interpret-id (alist-get 'interpret_id data))
+                 (testcase (alist-get 'test_case data))
+                 (expected-id (alist-get 'interpret_expected_id data))
+                 (res-buf (get-buffer leetcode--result-buffer-name)))
+            (with-current-buffer res-buf
+              (erase-buffer)
+              (insert (concat "Your input:\n" testcase "\n\n")))
+            (with-local-quit
+              (let* ((resp (leetcode--check-submission expected-id slug-title))
+                     (data (request-response-data resp)))
+                (while (not (equal (alist-get 'state data) "SUCCESS"))
+                  ;; poll until the state is SUCCESS
+                  (sleep-for 0.5)
+                  (setq resp (leetcode--check-submission expected-id slug-title))
+                  (setq data (request-response-data resp)))
+                (let ((answer (alist-get 'code_answer data)))
+                  (with-current-buffer res-buf
+                    (insert (concat "Expected:\n" (aref answer 0) "\n\n"))))))
+            (with-local-quit
+              (let* ((resp (leetcode--check-submission interpret-id slug-title))
+                     (data (request-response-data resp)))
+                (while (not (equal (alist-get 'state data) "SUCCESS"))
+                  ;; poll until the state is SUCCESS
+                  (sleep-for 0.5)
+                  (setq resp (leetcode--check-submission interpret-id slug-title))
+                  (setq data (request-response-data resp)))
+                (let ((res-buf (get-buffer leetcode--result-buffer-name))
+                      (answer (alist-get 'code_answer data)))
+                  (with-current-buffer res-buf
+                    (insert (concat "Output:\n" (aref answer 0) "\n\n"))))))
+            (leetcode--loading-mode -1)))))))
 
 (defun leetcode--check-submission (submission-id slug-title)
   (request
@@ -454,8 +506,9 @@ under that column and the column name."
 (defun leetcode-submit ()
   "Submit the code and popup a buffer to show result."
   (interactive)
-  (let* ((code (leetcode--buffer-content (current-buffer)))
-         (slug-title (with-current-buffer (current-buffer)
+  (let* ((code-buf (current-buffer))
+         (code (leetcode--buffer-content code-buf))
+         (slug-title (with-current-buffer code-buf
                        (file-name-base (buffer-name))))
          (id (plist-get (-find (lambda (p)
                                  (equal slug-title
