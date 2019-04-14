@@ -457,17 +457,21 @@ under that column and the column name."
   (let* ((code (leetcode--buffer-content (current-buffer)))
          (slug-title (with-current-buffer (current-buffer)
                        (file-name-base (buffer-name))))
-         (id (catch 'break
-               (dolist (p (plist-get leetcode--problems :problems))
-                 (when (equal slug-title (leetcode--slugify-title (plist-get p :title)))
-                   (throw 'break (plist-get p :id)))))))
+         (id (plist-get (-find (lambda (p)
+                                 (equal slug-title
+                                        (leetcode--slugify-title
+                                         (plist-get p :title))))
+                               (plist-get leetcode--problems :problems))
+                        :id)))
     (leetcode--loading-mode t)
     (deferred:$
       (request-deferred
        (format leetcode--api-submit slug-title)
        :type "POST"
        :headers `(,leetcode--User-Agent
-                  ,(leetcode--referer (format leetcode--api-problems-submission slug-title))
+                  ,(leetcode--referer (format
+                                       leetcode--api-problems-submission
+                                       slug-title))
                   ,(cons "Content-Type" "application/json")
                   ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
        :data (json-encode `((lang . ,leetcode-prefer-language)
@@ -586,11 +590,11 @@ coding. It will choose major mode by
       (with-current-buffer (get-buffer-create (leetcode--get-code-buffer-name title))
         (setq code-buf (current-buffer))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-        (catch 'break
-          (dolist (s snippets)
-            (when (equal (alist-get 'langSlug s) leetcode-prefer-language)
-              (insert (alist-get 'code s))
-              (throw 'break "Found target snippet."))))))
+        (let ((snippet (-find (lambda (s)
+                                (equal (alist-get 'langSlug s)
+                                       leetcode-prefer-language))
+                              snippets)))
+          (insert (alist-get 'code snippet)))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
                        leetcode--display-code)
