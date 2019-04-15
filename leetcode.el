@@ -568,18 +568,17 @@ alist specified in `display-buffer-alist'."
             (leetcode--check-submission
              submission-id slug-title
              (lambda (res)
-               (let ((submission-id (alist-get 'submission_id res))
-                     (runtime (alist-get 'status_runtime res))
+               (let ((runtime (alist-get 'status_runtime res))
                      (memory (alist-get 'status_memory res))
                      (runtime-perc (alist-get 'runtime_percentile res))
                      (memory-perc (alist-get 'memory_percentile res))
                      (total-correct (alist-get 'total_correct res))
-                     (total-testcases (alist-get 'total_testcase res))
+                     (total-testcases (alist-get 'total_testcases res))
                      (status-msg (alist-get 'status_msg res))
                      (lang (alist-get 'pretty_lang res)))
                  (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
                    (erase-buffer)
-                   (insert (format "Status: %s\n\n" status-msg))
+                   (insert (format "Status: %s\t%s/%s\n\n" status-msg total-testcases total-correct))
                    (when (equal status-msg "Accepted")
                      (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
                                      runtime runtime-perc lang))
@@ -615,7 +614,7 @@ Get current entry by using `tabulated-list-get-entry' and use
       (insert (concat (capitalize difficulty) html-margin
                       "likes: " (number-to-string likes) html-margin
                       "dislikes: " (number-to-string dislikes)))
-      (insert (alist-get 'content problem))
+      (insert content)
       (setq shr-current-font t)
       (leetcode--replace-in-buffer "" "")
       ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
@@ -641,7 +640,7 @@ python3, ruby, rust, scala, swift.")
 (defconst leetcode--prefer-language-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
-    n    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
+    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
     ("python3" . ".py") ("ruby" . ".rb") ("rust" . ".rs")
     ("scala" . ".scala") ("swift" . ".swift"))
   "LeetCode programming language suffixes.
