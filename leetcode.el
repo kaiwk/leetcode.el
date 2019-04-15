@@ -1,11 +1,11 @@
-;;; leetcode.el --- An emacs leetcode client.          -*- lexical-binding: t; -*-
+;;; leetcode.el --- An leetcode client.          -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2019  Wang Kai
 
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "25.1"))
+;; Package-Requires: ((emacs "25") (dash "2.15.0") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3"))
 ;; Version: 0.1.0
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -23,8 +23,15 @@
 
 ;;; Commentary:
 
+;; leetcode.el is an unofficial LeetCode client.
 ;;
-
+;; Now it implements several API:
+;; - Check problems list
+;; - Try testcase
+;; - Submit code
+;;
+;; Since most HTTP requests works asynchronously, it won't block Emacs.
+;;
 ;;; Code:
 
 
@@ -45,17 +52,18 @@
   :group 'tools)
 
 (defcustom leetcode-account ""
-  "leetcode login account."
+  "LeetCode login account."
   :type 'string
   :group 'leetcode)
 
 (defcustom leetcode-password ""
-  "leetcode login password."
+  "LeetCode login password."
   :type 'string
   :group 'leetcode)
 
 (defvar leetcode--user nil
   "User object.
+The object with following attributes:
 :username String
 :solved   Number
 :easy     Number
@@ -64,17 +72,18 @@
 
 (defvar leetcode--problems nil
   "Problems info with a list of problem object.
+The object with following attributes:
 :num      Number
 :tag      String
 :problems List
-
-    :status     String
-    :id         Number
-    :pos        Number
-    :title      String
-    :acceptance String
-    :difficulty Number {1,2,3}
-    :paid-only  Boolean {t|nil}")
+The elements of :problems has attributes:
+:status     String
+:id         Number
+:pos        Number
+:title      String
+:acceptance String
+:difficulty Number {1,2,3}
+:paid-only  Boolean {t|nil}")
 
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name          "*leetcode*")
@@ -89,17 +98,17 @@
 
 (defface leetcode-easy-face
   '((t (:foreground "#5CB85C")))
-  "Face for easy problem."
+  "Face for easy problems."
   :group 'leetcode)
 
 (defface leetcode-medium-face
   '((t (:foreground "#F0AD4E")))
-  "Face for medium problem."
+  "Face for medium problems."
   :group 'leetcode)
 
 (defface leetcode-hard-face
   '((t (:foreground "#D9534E")))
-  "Face for hard problem."
+  "Face for hard problems."
   :group 'leetcode)
 
 ;;; Login
@@ -127,10 +136,12 @@
 
 
 (defun leetcode--referer (value)
-  "HTTP Referer Header."
+  "It will return an alist as the HTTP Referer Header.
+VALUE should be the referer."
   (cons "Referer" value))
 
 (defun leetcode--csrf-token ()
+  "Return csrf token."
   (let ((token (assoc-default
                 "csrftoken"
                 (request-cookie-alist leetcode--domain "/" t))))
@@ -140,11 +151,12 @@
           (leetcode--csrf-token)))))
 
 (defun leetcode--login (account password)
-  "Send login request and return a deferred object."
+  "Send login request and return a deferred object.
+When ACCOUNT or PASSWORD is empty string it will show a prompt."
   (when (or (string-empty-p account) (string-empty-p password))
     (setq account (read-string "account: "))
     (setq password (read-string "password: ")))
-  (leetcode--global-loading-mode t)
+  (leetcode-global-loading-mode t)
   (request-deferred
    leetcode--url-login
    :type "POST"
@@ -158,14 +170,15 @@
             ("password"            . ("" :data ,password)))
    :success
    (cl-function (lambda (&key data &allow-other-keys)
-                  (leetcode--global-loading-mode -1)))
+                  (leetcode-global-loading-mode -1)))
    :error
    (cl-function
     (lambda (&rest args &key error-thrown &allow-other-keys)
-      (leetcode--global-loading-mode -1)
+      (leetcode-global-loading-mode -1)
       (message "LeetCode Login ERROR: %S" error-thrown)))))
 
 (defun leetcode--login-p ()
+  "Whether user is login."
   (let ((username (plist-get leetcode--user :username)))
     (and username
          (not (string-empty-p username))
@@ -175,8 +188,9 @@
            (concat "." leetcode--domain) "/" t)))))
 
 (defun leetcode--set-user-and-problems (response)
-  "Set `leetcode--user' and `leetcode--problems', if user isn't
- login, only `leetcode--problems' will be set."
+  "Set `leetcode--user' and `leetcode--problems'.
+If user isn't login, only `leetcode--problems' will be set.
+RESPONSE is a request.el response."
   (let ((data (request-response-data response)))
     ;; user
     (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name data)))
@@ -213,25 +227,20 @@
                             problems)))
                        problems)))))
 
-(defun leetcode--fetch-user-and-problems ()
-  (request-deferred
-   leetcode--api-all-problems
-   :headers `(,leetcode--User-Agent
-              ,leetcode--X-Requested-With
-              ,(leetcode--referer leetcode--url-login))
-   :parser 'json-read))
-
 (defun leetcode--slugify-title (title)
-  "Such as 'Two Sum' will be converted to 'two-sum'."
+  "Make TITLE a slug title.
+Such as 'Two Sum' will be converted to 'two-sum'."
   (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
          (str2 (replace-regexp-in-string "(" "" str1))
          (str3 (replace-regexp-in-string ")" "" str2))
          (res (replace-regexp-in-string "," "" str3)))
     res))
 
-(defun leetcode--problem-descr-graphql-params (opration &optional vars)
+(defun leetcode--problem-descr-graphql-params (operation &optional vars)
+  "Construct a GraphQL parameter.
+OPERATION and VARS are LeetCode GraphQL parameters."
   (list
-   (cons "operationName" "questionData")
+   (cons "operationName" operation)
    (cons "query" (graphql-query
                   questionData
                   (:arguments (($titleSlug . String!))
@@ -246,11 +255,12 @@
 
 (defun leetcode--parse-problem (title)
   "Fetch single problem.
+TITLE is a problem's title.
+Return a object with following attributes:
 :likes     Number
 :dislikes  Number
 :content   String
-:topicTags String
-"
+:topicTags String"
   (let* ((slug-title (leetcode--slugify-title title))
          (resp (request
                 leetcode--api-graphql
@@ -264,7 +274,7 @@
     (alist-get 'question (alist-get 'data (request-response-data resp)))))
 
 (defun leetcode--replace-in-buffer (regex to)
-  "Replace string in `current-buffer'."
+  "Replace string matched REGEX in `current-buffer' to TO."
   (with-current-buffer (current-buffer)
     (save-excursion
       (goto-char (point-min))
@@ -272,9 +282,12 @@
         (while (re-search-forward regex (point-max) t)
           (replace-match to))))))
 
-(defun leetcode--make-tabulated-headers (column-names rows)
-  "Column width calculated by picking the max width of every cell
-under that column and the column name."
+(defun leetcode--make-tabulated-headers (header-names rows)
+  "Calculate headers width.
+Column width calculated by picking the max width of every cell
+under that column and the HEADER-NAMES. HEADER-NAMES are a list
+of header name, ROWS are a list of vector, each vector is one
+row."
   (let ((widths
          (-reduce-from
           (lambda (acc row)
@@ -282,16 +295,17 @@ under that column and the column name."
              (lambda (a col) (max a (length col)))
              acc
              (append row '())))
-          (-map #'length column-names)
+          (-map #'length header-names)
           rows)))
     (vconcat
      (-zip-with
       (lambda (col size) (list col size nil))
-      column-names widths))))
+      header-names widths))))
 
 (defun leetcode--problems-rows ()
-  "Generate tabulated list rows from `leetcode--problems',
-([<checkmark> <position> <acceptance> <difficulty>] ...)"
+  "Generate tabulated list rows from `leetcode--problems'.
+Return a list of rows, each row is a vector:
+ ([<checkmark> <position> <acceptance> <difficulty>] ...)"
   (let ((problems (reverse (plist-get leetcode--problems :problems)))
         (easy-tag "easy")
         (medium-tag "medium")
@@ -332,16 +346,21 @@ under that column and the column name."
 (defun leetcode-problems-refresh ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
-  (leetcode--global-loading-mode t)
+  (leetcode-global-loading-mode t)
   (deferred:$
-    (leetcode--fetch-user-and-problems)
+    (request-deferred
+     leetcode--api-all-problems
+     :headers `(,leetcode--User-Agent
+                ,leetcode--X-Requested-With
+                ,(leetcode--referer leetcode--url-login))
+     :parser 'json-read)
     (deferred:nextc it
       (lambda (response) (leetcode--set-user-and-problems response)))
     (deferred:nextc it
       (lambda ()
-        (let* ((column-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
+        (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
                (rows (leetcode--problems-rows))
-               (headers (leetcode--make-tabulated-headers column-names rows)))
+               (headers (leetcode--make-tabulated-headers header-names rows)))
           (with-current-buffer (get-buffer-create leetcode--buffer-name)
             (leetcode--problems-mode)
             (setq tabulated-list-format headers)
@@ -352,7 +371,7 @@ under that column and the column name."
                    rows))
             (tabulated-list-init-header)
             (tabulated-list-print t)
-            (leetcode--global-loading-mode -1)))))))
+            (leetcode-global-loading-mode -1)))))))
 
 ;;;###autoload
 (defun leetcode ()
@@ -374,6 +393,7 @@ under that column and the column name."
                 (switch-to-buffer leetcode--buffer-name)))))))))
 
 (defun leetcode--buffer-content (buf)
+  "Get content without text properties of BUF."
   (with-current-buffer buf
     (buffer-substring-no-properties
      (point-min) (point-max))))
@@ -439,7 +459,12 @@ under that column and the column name."
                (leetcode--loading-mode -1)))))))))
 
 (defun leetcode--check-submission (submission-id slug-title cb)
-  "Polling to check submission detail."
+  "Polling to check submission detail.
+After each submission, either try testcase or submit, LeetCode
+returns a SUBMISSION-ID. With the SUBMISSION-ID, client will poll
+for the submission detail. SLUG-TITLE is a slugified problem
+title. CB is a callback function which will be invoked after
+request success."
   (request
    (format leetcode--api-check-submission submission-id)
    :type "POST"
@@ -458,12 +483,10 @@ under that column and the column name."
   "Specify layout for solving problem.
 +---------------+----------------+
 |               |                |
-|               |                |
 |               |  Description   |
 |               |                |
-|               |                |
-|     Code      +----------------+
-|               |   Customize    |
+|               +----------------+
+|     Code      |   Customize    |
 |               |   Testcases    |
 |               +----------------+
 |               |Submit/Testcases|
@@ -479,6 +502,9 @@ under that column and the column name."
   (other-window -1))
 
 (defun leetcode--display-result (buffer &optional alist)
+  "Display function for LeetCode result.
+BUFFER is the one to show LeetCode result. ALIST is a combined
+alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-next-sibling
                   (window-top-child
@@ -489,6 +515,9 @@ under that column and the column name."
     window))
 
 (defun leetcode--display-testcase (buffer &optional alist)
+  "Display function for LeetCode testcase.
+BUFFER is the one to show LeetCode testcase. ALIST is a combined
+alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-top-child
                   (window-next-sibling
@@ -498,7 +527,9 @@ under that column and the column name."
     window))
 
 (defun leetcode--display-code (buffer &optional alist)
-  "Display code buffer in the left."
+  "Display function for LeetCode code.
+BUFFER is the one to show LeetCode code. ALIST is a combined
+alist specified in `display-buffer-alist'."
   (let ((window (window-left-child (frame-root-window))))
     (set-window-buffer window buffer)
     window))
@@ -561,9 +592,9 @@ under that column and the column name."
                    (leetcode--loading-mode -1)))))))))))
 
 (defun leetcode-show-descri ()
-  "Show current entry problem description. Get current entry by
-using `tabulated-list-get-entry' and use `shr-render-buffer' to
-render problem description."
+  "Show current entry problem description.
+Get current entry by using `tabulated-list-get-entry' and use
+`shr-render-buffer' to render problem description."
   (interactive)
   (let* ((entry (tabulated-list-get-entry))
          (pos (aref entry 1))
@@ -603,29 +634,34 @@ render problem description."
       (switch-to-buffer (current-buffer)))))
 
 (defvar leetcode-prefer-language "python3"
-  "LeetCode programming language: c, cpp, csharp, golang, java,
-  javascript, kotlin, php, python, python3, ruby, rust, scala,
-  swift")
+  "LeetCode programming language.
+c, cpp, csharp, golang, java, javascript, kotlin, php, python,
+python3, ruby, rust, scala, swift.")
 
 (defconst leetcode--prefer-language-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
-    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
+    n    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
     ("python3" . ".py") ("ruby" . ".rb") ("rust" . ".rs")
     ("scala" . ".scala") ("swift" . ".swift"))
-  "c, cpp, csharp, golang, java, javascript, kotlin, php, python,
-  python3, ruby, rust, scala, swift")
+  "LeetCode programming language suffixes.
+c, cpp, csharp, golang, java, javascript, kotlin, php, python,
+python3, ruby, rust, scala, swift.")
 
 (defun leetcode--get-code-buffer-name (title)
+  "Get code buffer name by TITLE and `leetcode-prefer-language'."
   (let ((suffix (assoc-default
                  leetcode-prefer-language
                  leetcode--prefer-language-suffixes)))
     (concat (leetcode--slugify-title title) suffix)))
 
 (defun leetcode--start-coding (title snippets testcase)
-  "Create a buffer which is not associated with any file for
-coding. It will choose major mode by
-`leetcode-prefer-language'and `auto-mode-alist'."
+  "Create a buffer for coding.
+The buffer will be not associated with any file. It will choose
+major mode by `leetcode-prefer-language'and `auto-mode-alist'.
+TITLE is a problem title. SNIPPETS is a list of alist used to
+store eachprogramming language's snippet. TESTCASE is provided
+for current problem."
   (leetcode--solving-layout)
   (let ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
         (suffix (assoc-default
@@ -667,7 +703,7 @@ coding. It will choose major mode by
       (define-key map "p" #'previous-line)
       (define-key map "g" #'leetcode-problems-refresh)
       (define-key map "q" #'quit-window)))
-  "Keymap for `leetcode--problems-mode'")
+  "Keymap for `leetcode--problems-mode'.")
 
 (define-derived-mode leetcode--problems-mode
   tabulated-list-mode "LC Problems"
@@ -684,7 +720,7 @@ coding. It will choose major mode by
       (suppress-keymap map)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)))
-  "Keymap for `leetcode--problem-description-mode'")
+  "Keymap for `leetcode--problem-description-mode'.")
 
 (define-derived-mode leetcode--problem-description-mode
   special-mode "LC Descri"
@@ -705,11 +741,13 @@ coding. It will choose major mode by
       (spinner-start leetcode--spinner)
     (spinner-stop leetcode--spinner)))
 
-(defun leetcode--turn-on-loading-mode ()
+(defun turn-on-leetcode-loading-mode ()
+  "Turn on function `leetcode--loading-mode'."
   (leetcode--loading-mode t))
 
-(define-global-minor-mode leetcode--global-loading-mode
-  leetcode--loading-mode leetcode--turn-on-loading-mode
+;;;###autoload
+(define-global-minor-mode leetcode-global-loading-mode
+  leetcode--loading-mode turn-on-leetcode-loading-mode
   :group 'leetcode)
 
 (provide 'leetcode)
