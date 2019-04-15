@@ -58,7 +58,7 @@ In leetcode problems list buffer:
 2. Press `<RET>`, show problem description, move cursor to 'solve it', press
    `<RET>` again, start coding!
 
-3. After finishing your code, execute `leetcode-submit`.
+3. After finishing your code, you can edit testcase and execute `leetcode-try` or execute `leetcode-submit`.
 
 ![leetcode-submit](images/leetcode-submit.png)
 

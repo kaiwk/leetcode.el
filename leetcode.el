@@ -4,6 +4,9 @@
 
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
+;; URL: https://github.com/kaiwk/leetcode.el
+;; Package-Requires: ((emacs "25.1"))
+;; Version: 0.1.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -219,6 +222,7 @@
    :parser 'json-read))
 
 (defun leetcode--slugify-title (title)
+  "Such as 'Two Sum' will be converted to 'two-sum'."
   (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
          (str2 (replace-regexp-in-string "(" "" str1))
          (str3 (replace-regexp-in-string ")" "" str2))
@@ -375,7 +379,7 @@ under that column and the column name."
      (point-min) (point-max))))
 
 (defun leetcode-try ()
-  "Test the code using customized testcase."
+  "Asynchronously test the code using customized testcase."
   (interactive)
   (let* ((code-buf (current-buffer))
          (testcase-buf (get-buffer leetcode--testcase-buffer-name))
@@ -420,39 +424,35 @@ under that column and the column name."
             (with-current-buffer res-buf
               (erase-buffer)
               (insert (concat "Your input:\n" testcase "\n\n")))
-            (with-local-quit
-              (let* ((resp (leetcode--check-submission expected-id slug-title))
-                     (data (request-response-data resp)))
-                (while (not (equal (alist-get 'state data) "SUCCESS"))
-                  ;; poll until the state is SUCCESS
-                  (sleep-for 0.5)
-                  (setq resp (leetcode--check-submission expected-id slug-title))
-                  (setq data (request-response-data resp)))
-                (let ((answer (alist-get 'code_answer data)))
-                  (with-current-buffer res-buf
-                    (insert (concat "Expected:\n" (aref answer 0) "\n\n"))))))
-            (with-local-quit
-              (let* ((resp (leetcode--check-submission interpret-id slug-title))
-                     (data (request-response-data resp)))
-                (while (not (equal (alist-get 'state data) "SUCCESS"))
-                  ;; poll until the state is SUCCESS
-                  (sleep-for 0.5)
-                  (setq resp (leetcode--check-submission interpret-id slug-title))
-                  (setq data (request-response-data resp)))
-                (let ((res-buf (get-buffer leetcode--result-buffer-name))
-                      (answer (alist-get 'code_answer data)))
-                  (with-current-buffer res-buf
-                    (insert (concat "Output:\n" (aref answer 0) "\n\n"))))))
-            (leetcode--loading-mode -1)))))))
+            (leetcode--check-submission
+             expected-id slug-title
+             (lambda (res)
+               (let ((answer (aref (alist-get 'code_answer res) 0)))
+                 (with-current-buffer res-buf
+                   (insert (concat "Expected:\n" answer "\n\n"))))))
+            (leetcode--check-submission
+             interpret-id slug-title
+             (lambda (res)
+               (let ((answer (aref (alist-get 'code_answer res) 0)))
+                 (with-current-buffer res-buf
+                   (insert (concat "Output:\n" answer "\n\n"))))
+               (leetcode--loading-mode -1)))))))))
 
-(defun leetcode--check-submission (submission-id slug-title)
+(defun leetcode--check-submission (submission-id slug-title cb)
+  "Polling to check submission detail."
   (request
    (format leetcode--api-check-submission submission-id)
    :type "POST"
    :headers `(,leetcode--User-Agent
               ,(leetcode--referer (format leetcode--api-problems-submission slug-title))
               ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
-   :parser 'json-read :sync t))
+   :parser 'json-read
+   :success
+   (cl-function
+    (lambda (&key data &allow-other-keys)
+      (if (equal (alist-get 'state data) "SUCCESS")
+          (funcall cb data)
+        (leetcode--check-submission submission-id slug-title cb))))))
 
 (defun leetcode--solving-layout ()
   "Specify layout for solving problem.
@@ -504,7 +504,7 @@ under that column and the column name."
     window))
 
 (defun leetcode-submit ()
-  "Submit the code and popup a buffer to show result."
+  "Asynchronously submit the code and show result."
   (interactive)
   (let* ((code-buf (current-buffer))
          (code (leetcode--buffer-content code-buf))
@@ -533,40 +533,32 @@ under that column and the column name."
        :parser 'json-read)
       (deferred:nextc it
         (lambda (resp)
-          (alist-get 'submission_id (request-response-data resp))))
-      (deferred:nextc it
-        (lambda (submission-id)
-          (with-local-quit
-            (let* ((resp (leetcode--check-submission submission-id slug-title))
-                   (data (request-response-data resp)))
-              (while (not (equal (alist-get 'state data) "SUCCESS"))
-                ;; poll until the state is SUCCESS
-                (sleep-for 0.5)
-                (setq resp (leetcode--check-submission submission-id slug-title))
-                (setq data (request-response-data resp)))
-              data))))
-      (deferred:nextc it
-        (lambda (res)
-          (let ((submission-id (alist-get 'submission_id res))
-                (runtime (alist-get 'status_runtime res))
-                (memory (alist-get 'status_memory res))
-                (runtime-perc (alist-get 'runtime_percentile res))
-                (memory-perc (alist-get 'memory_percentile res))
-                (total-correct (alist-get 'total_correct res))
-                (total-testcases (alist-get 'total_testcase res))
-                (status-msg (alist-get 'status_msg res))
-                (lang (alist-get 'pretty_lang res)))
-            (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
-              (erase-buffer)
-              (insert (format "Status: %s\n\n" status-msg))
-              (when (equal status-msg "Accepted")
-                (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n" runtime runtime-perc lang))
-                (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions." memory memory-perc lang)))
-              (display-buffer (current-buffer)
-                              '((display-buffer-reuse-window
-                                 leetcode--display-result)
-                                (reusable-frames . visible)))
-              (leetcode--loading-mode -1))))))))
+          (let ((submission-id (alist-get 'submission_id (request-response-data resp))))
+            (leetcode--check-submission
+             submission-id slug-title
+             (lambda (res)
+               (let ((submission-id (alist-get 'submission_id res))
+                     (runtime (alist-get 'status_runtime res))
+                     (memory (alist-get 'status_memory res))
+                     (runtime-perc (alist-get 'runtime_percentile res))
+                     (memory-perc (alist-get 'memory_percentile res))
+                     (total-correct (alist-get 'total_correct res))
+                     (total-testcases (alist-get 'total_testcase res))
+                     (status-msg (alist-get 'status_msg res))
+                     (lang (alist-get 'pretty_lang res)))
+                 (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
+                   (erase-buffer)
+                   (insert (format "Status: %s\n\n" status-msg))
+                   (when (equal status-msg "Accepted")
+                     (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
+                                     runtime runtime-perc lang))
+                     (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
+                                     memory memory-perc lang)))
+                   (display-buffer (current-buffer)
+                                   '((display-buffer-reuse-window
+                                      leetcode--display-result)
+                                     (reusable-frames . visible)))
+                   (leetcode--loading-mode -1)))))))))))
 
 (defun leetcode-show-descri ()
   "Show current entry problem description. Get current entry by
@@ -595,7 +587,7 @@ render problem description."
       (insert (alist-get 'content problem))
       (setq shr-current-font t)
       (leetcode--replace-in-buffer "" "")
-      ;; NOTE: shr.el can't render "https://xxxx.png", now we use "http"
+      ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
       (leetcode--replace-in-buffer "https" "http")
       (shr-render-buffer (current-buffer)))
     (with-current-buffer "*html*"
@@ -660,6 +652,7 @@ coding. It will choose major mode by
                        leetcode--display-testcase)
                       (reusable-frames . visible))))
   (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
+    (erase-buffer)
     (display-buffer (current-buffer)
                     '((display-buffer-reuse-window
                        leetcode--display-result)
@@ -690,7 +683,8 @@ coding. It will choose major mode by
     (prog1 map
       (suppress-keymap map)
       (define-key map "n" #'next-line)
-      (define-key map "p" #'previous-line))))
+      (define-key map "p" #'previous-line)))
+  "Keymap for `leetcode--problem-description-mode'")
 
 (define-derived-mode leetcode--problem-description-mode
   special-mode "LC Descri"
@@ -698,7 +692,8 @@ coding. It will choose major mode by
   :group 'leetcode)
 
 ;;; Use spinner.el to show progress indicator
-(defvar leetcode--spinner (spinner-create 'progress-bar-filled))
+(defvar leetcode--spinner (spinner-create 'progress-bar-filled)
+  "Progress indicator to show request progress.")
 (defconst leetcode--loading-lighter
   '(" [LeetCode" (:eval (spinner-print leetcode--spinner)) "]"))
 
