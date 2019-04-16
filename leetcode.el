@@ -155,7 +155,7 @@ VALUE should be the referer."
 When ACCOUNT or PASSWORD is empty string it will show a prompt."
   (when (or (string-empty-p account) (string-empty-p password))
     (setq account (read-string "account: "))
-    (setq password (read-string "password: ")))
+    (setq password (read-passwd "password: ")))
   (leetcode-global-loading-mode t)
   (request-deferred
    leetcode--url-login
