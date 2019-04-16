@@ -169,8 +169,9 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
             ("login"               . ("" :data ,account))
             ("password"            . ("" :data ,password)))
    :success
-   (cl-function (lambda (&key data &allow-other-keys)
-                  (leetcode-global-loading-mode -1)))
+   (cl-function
+    (lambda (&key data &allow-other-keys)
+      (leetcode-global-loading-mode -1)))
    :error
    (cl-function
     (lambda (&rest args &key error-thrown &allow-other-keys)
@@ -187,45 +188,44 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
           (request-cookie-alist
            (concat "." leetcode--domain) "/" t)))))
 
-(defun leetcode--set-user-and-problems (response)
+(defun leetcode--set-user-and-problems (res)
   "Set `leetcode--user' and `leetcode--problems'.
-If user isn't login, only `leetcode--problems' will be set.
-RESPONSE is a request.el response."
-  (let ((data (request-response-data response)))
-    ;; user
-    (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name data)))
-    (setq leetcode--user (plist-put leetcode--user :solved (alist-get 'num_solved data)))
-    (setq leetcode--user (plist-put leetcode--user :easy (alist-get 'ac_easy data)))
-    (setq leetcode--user (plist-put leetcode--user :medium (alist-get 'ac_medium data)))
-    (setq leetcode--user (plist-put leetcode--user :hard (alist-get 'ac_hard data)))
-    ;; problem list
-    (setq leetcode--problems (plist-put leetcode--problems :num (alist-get 'num_total data)))
-    (setq leetcode--problems (plist-put leetcode--problems :tag "all"))
-    (setq leetcode--problems
-          (plist-put leetcode--problems :problems
-                     (let ((raw-vec (alist-get 'stat_status_pairs data))
-                           (len (plist-get leetcode--problems :num))
-                           problems)
-                       (dolist (i (number-sequence 0 (1- len)))
-                         (let* ((cur (aref raw-vec i))
-                                (stat (alist-get 'stat cur))
-                                (status (alist-get 'status cur))
-                                (difficulty (alist-get 'level (alist-get 'difficulty cur)))
-                                (paid-only (eq (alist-get 'paid_only cur) t))
-                                (question-id (alist-get 'question_id stat))
-                                (total-submitted (alist-get 'total_submitted stat))
-                                (total-acs (alist-get 'total_acs stat)))
-                           (push
-                            (list
-                             :status status
-                             :id question-id
-                             :pos (- len i)
-                             :title (alist-get 'question__title stat)
-                             :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
-                             :difficulty difficulty
-                             :paid-only paid-only)
-                            problems)))
-                       problems)))))
+If user isn't login, only `leetcode--problems' will be set. RES
+is an alist comes from `leetcode--api-all-problems'."
+  ;; user
+  (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name  res)))
+  (setq leetcode--user (plist-put leetcode--user :solved   (alist-get 'num_solved res)))
+  (setq leetcode--user (plist-put leetcode--user :easy     (alist-get 'ac_easy    res)))
+  (setq leetcode--user (plist-put leetcode--user :medium   (alist-get 'ac_medium  res)))
+  (setq leetcode--user (plist-put leetcode--user :hard     (alist-get 'ac_hard    res)))
+  ;; problem list
+  (setq leetcode--problems (plist-put leetcode--problems :num (alist-get 'num_total res)))
+  (setq leetcode--problems (plist-put leetcode--problems :tag "all"))
+  (setq leetcode--problems
+        (plist-put leetcode--problems :problems
+                   (let ((raw-vec (alist-get 'stat_status_pairs res))
+                         (len (plist-get leetcode--problems :num))
+                         problems)
+                     (dolist (i (number-sequence 0 (1- len)))
+                       (let* ((cur (aref raw-vec i))
+                              (status          (alist-get 'status cur))
+                              (stat            (alist-get 'stat cur))
+                              (question-id     (alist-get 'question_id stat))
+                              (total-submitted (alist-get 'total_submitted stat))
+                              (total-acs       (alist-get 'total_acs stat))
+                              (difficulty      (alist-get 'level (alist-get 'difficulty cur)))
+                              (paid-only (eq (alist-get 'paid_only cur) t)))
+                         (push
+                          (list
+                           :status status
+                           :id question-id
+                           :pos (- len i)
+                           :title (alist-get 'question__title stat)
+                           :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
+                           :difficulty difficulty
+                           :paid-only paid-only)
+                          problems)))
+                     problems))))
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
@@ -305,7 +305,7 @@ row."
 (defun leetcode--problems-rows ()
   "Generate tabulated list rows from `leetcode--problems'.
 Return a list of rows, each row is a vector:
- ([<checkmark> <position> <acceptance> <difficulty>] ...)"
+\([<checkmark> <position> <title> <acceptance> <difficulty>] ...)"
   (let ((problems (reverse (plist-get leetcode--problems :problems)))
         (easy-tag "easy")
         (medium-tag "medium")
@@ -355,7 +355,8 @@ Return a list of rows, each row is a vector:
                 ,(leetcode--referer leetcode--url-login))
      :parser 'json-read)
     (deferred:nextc it
-      (lambda (response) (leetcode--set-user-and-problems response)))
+      (lambda (response)
+        (leetcode--set-user-and-problems (request-response-data response))))
     (deferred:nextc it
       (lambda ()
         (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
@@ -379,18 +380,17 @@ Return a list of rows, each row is a vector:
   (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
-    (if (leetcode--login-p)
-        (deferred:$
+    (deferred:$
+      (if (leetcode--login-p)
+          (deferred:next
+            (lambda ()
+              (message "User have been login in.")))
+        (leetcode--login leetcode-account leetcode-password))
+      (deferred:nextc it
+        (lambda ()
           (deferred:nextc (leetcode-problems-refresh)
             (lambda ()
-              (switch-to-buffer leetcode--buffer-name))))
-      (deferred:$
-        (leetcode--login leetcode-account leetcode-password)
-        (deferred:nextc it
-          (lambda ()
-            (deferred:nextc (leetcode-problems-refresh)
-              (lambda ()
-                (switch-to-buffer leetcode--buffer-name)))))))))
+              (switch-to-buffer leetcode--buffer-name))))))))
 
 (defun leetcode--buffer-content (buf)
   "Get content without text properties of BUF."

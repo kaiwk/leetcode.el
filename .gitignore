@@ -11,7 +11,7 @@
 *.~undo-tree
 
 # ignore these dirty local tests.
+test-account
 test.el
-test-leetcode-account.el
-problem.graphql
+*.graphql
 *.http
