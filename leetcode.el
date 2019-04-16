@@ -453,10 +453,25 @@ Return a list of rows, each row is a vector:
             (leetcode--check-submission
              interpret-id slug-title
              (lambda (res)
-               (let ((answer (aref (alist-get 'code_answer res) 0)))
+               (let ((status-code (alist-get 'status_code res))
+                     (status-msg (alist-get 'status_msg res)))
                  (with-current-buffer res-buf
-                   (insert (concat "Output:\n" answer "\n\n"))))
-               (leetcode--loading-mode -1)))))))))
+                   (insert "Output:\n")
+                   (cond
+                    ((eq status-code 10)
+                     (insert (aref (alist-get 'code_answer res) 0)))
+                    ((eq status-code 14)
+                     (insert status-msg))
+                    ((eq status-code 15)
+                     (insert status-msg)
+                     (insert "\n\n")
+                     (insert (alist-get 'full_runtime_error res)))
+                    ((eq status-code 20)
+                     (insert status-msg)
+                     (insert "\n\n")
+                     (insert (alist-get 'full_compile_error res))))
+                   (insert "\n\n")
+                   (leetcode--loading-mode -1)))))))))))
 
 (defun leetcode--check-submission (submission-id slug-title cb)
   "Polling to check submission detail.
@@ -477,7 +492,12 @@ request success."
     (lambda (&key data &allow-other-keys)
       (if (equal (alist-get 'state data) "SUCCESS")
           (funcall cb data)
-        (leetcode--check-submission submission-id slug-title cb))))))
+        (leetcode--check-submission submission-id slug-title cb))))
+   :error
+   (cl-function
+    (lambda (&rest args &key error-thrown &allow-other-keys)
+      (leetcode-global-loading-mode -1)
+      (message "LeetCode Login ERROR: %S" error-thrown)))))
 
 (defun leetcode--solving-layout ()
   "Specify layout for solving problem.
