@@ -534,6 +534,49 @@ alist specified in `display-buffer-alist'."
     (set-window-buffer window buffer)
     window))
 
+(defun leetcode--show-submission-result (submission-detail)
+  "Show error info in `leetcode--result-buffer-name' based on status code.
+Error info comes from SUBMISSION-DETAIL. STATUS_CODE has
+following possible value:
+- 10: Accepted
+- 11: Wrong Anwser
+- 14: Time Limit Exceeded
+- 15: Runtime Error. full_runtime_error
+- 20: Compile Error. full_compile_error"
+  (let ((buf (get-buffer-create leetcode--result-buffer-name))
+        (status-code     (alist-get 'status_code        submission-detail))
+        (runtime         (alist-get 'status_runtime     submission-detail))
+        (memory          (alist-get 'status_memory      submission-detail))
+        (runtime-perc    (alist-get 'runtime_percentile submission-detail))
+        (memory-perc     (alist-get 'memory_percentile  submission-detail))
+        (total-correct   (alist-get 'total_correct      submission-detail))
+        (total-testcases (alist-get 'total_testcases    submission-detail))
+        (status-msg      (alist-get 'status_msg         submission-detail))
+        (lang            (alist-get 'pretty_lang        submission-detail)))
+    (with-current-buffer buf
+      (erase-buffer)
+      (insert (format "Status: %s\n" status-msg))
+      (cond
+       ((eq status-code 10)
+        (insert (format "%s/%s\n\n" total-testcases total-correct))
+        (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
+                        runtime runtime-perc lang))
+        (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
+                        memory memory-perc lang)))
+       ((eq status-code 11)
+        (insert (format "%s/%s\n\n" total-testcases total-correct)))
+       ((eq status-code 14) nil)
+       ((eq status-code 15)
+        (insert "\n")
+        (insert (format (alist-get 'full_runtime_error submission-detail))))
+       ((eq status-code 20)
+        (insert "\n")
+        (insert (format (alist-get 'full_compile_error submission-detail)))))
+      (display-buffer (current-buffer)
+                      '((display-buffer-reuse-window
+                         leetcode--display-result)
+                        (reusable-frames . visible))))))
+
 (defun leetcode-submit ()
   "Asynchronously submit the code and show result."
   (interactive)
@@ -568,27 +611,8 @@ alist specified in `display-buffer-alist'."
             (leetcode--check-submission
              submission-id slug-title
              (lambda (res)
-               (let ((runtime (alist-get 'status_runtime res))
-                     (memory (alist-get 'status_memory res))
-                     (runtime-perc (alist-get 'runtime_percentile res))
-                     (memory-perc (alist-get 'memory_percentile res))
-                     (total-correct (alist-get 'total_correct res))
-                     (total-testcases (alist-get 'total_testcases res))
-                     (status-msg (alist-get 'status_msg res))
-                     (lang (alist-get 'pretty_lang res)))
-                 (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
-                   (erase-buffer)
-                   (insert (format "Status: %s\t%s/%s\n\n" status-msg total-testcases total-correct))
-                   (when (equal status-msg "Accepted")
-                     (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
-                                     runtime runtime-perc lang))
-                     (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
-                                     memory memory-perc lang)))
-                   (display-buffer (current-buffer)
-                                   '((display-buffer-reuse-window
-                                      leetcode--display-result)
-                                     (reusable-frames . visible)))
-                   (leetcode--loading-mode -1)))))))))))
+               (leetcode--show-submission-result res)
+               (leetcode--loading-mode -1)))))))))
 
 (defun leetcode-show-descri ()
   "Show current entry problem description.
