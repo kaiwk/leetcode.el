@@ -346,33 +346,37 @@ Return a list of rows, each row is a vector:
 (defun leetcode-problems-refresh ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
-  (leetcode-global-loading-mode t)
-  (deferred:$
-    (request-deferred
-     leetcode--api-all-problems
-     :headers `(,leetcode--User-Agent
-                ,leetcode--X-Requested-With
-                ,(leetcode--referer leetcode--url-login))
-     :parser 'json-read)
-    (deferred:nextc it
-      (lambda (response)
-        (leetcode--set-user-and-problems (request-response-data response))))
-    (deferred:nextc it
-      (lambda ()
-        (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
-               (rows (leetcode--problems-rows))
-               (headers (leetcode--make-tabulated-headers header-names rows)))
-          (with-current-buffer (get-buffer-create leetcode--buffer-name)
-            (leetcode--problems-mode)
-            (setq tabulated-list-format headers)
-            (setq tabulated-list-entries
-                  (-zip-with
-                   (lambda (i x) (list i x))
-                   (-iterate '1+ 0 (length rows))
-                   rows))
-            (tabulated-list-init-header)
-            (tabulated-list-print t)
-            (leetcode-global-loading-mode -1)))))))
+  (if leetcode--loading-mode
+      (deferred:next
+        (lambda ()
+          (message "LeetCode has been refreshing...")))
+    (leetcode-global-loading-mode t)
+    (deferred:$
+      (request-deferred
+       leetcode--api-all-problems
+       :headers `(,leetcode--User-Agent
+                  ,leetcode--X-Requested-With
+                  ,(leetcode--referer leetcode--url-login))
+       :parser 'json-read)
+      (deferred:nextc it
+        (lambda (response)
+          (leetcode--set-user-and-problems (request-response-data response))))
+      (deferred:nextc it
+        (lambda ()
+          (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
+                 (rows (leetcode--problems-rows))
+                 (headers (leetcode--make-tabulated-headers header-names rows)))
+            (with-current-buffer (get-buffer-create leetcode--buffer-name)
+              (leetcode--problems-mode)
+              (setq tabulated-list-format headers)
+              (setq tabulated-list-entries
+                    (-zip-with
+                     (lambda (i x) (list i x))
+                     (-iterate '1+ 0 (length rows))
+                     rows))
+              (tabulated-list-init-header)
+              (tabulated-list-print t)
+              (leetcode-global-loading-mode -1))))))))
 
 ;;;###autoload
 (defun leetcode ()
