@@ -156,7 +156,7 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
   (when (or (string-empty-p account) (string-empty-p password))
     (setq account (read-string "account: "))
     (setq password (read-passwd "password: ")))
-  (leetcode-global-loading-mode t)
+  (leetcode--loading-mode t)
   (request-deferred
    leetcode--url-login
    :type "POST"
@@ -171,11 +171,11 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
    :success
    (cl-function
     (lambda (&key data &allow-other-keys)
-      (leetcode-global-loading-mode -1)))
+      (leetcode--loading-mode -1)))
    :error
    (cl-function
     (lambda (&rest args &key error-thrown &allow-other-keys)
-      (leetcode-global-loading-mode -1)
+      (leetcode--loading-mode -1)
       (message "LeetCode Login ERROR: %S" error-thrown)))))
 
 (defun leetcode--login-p ()
@@ -193,47 +193,45 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
 If user isn't login, only `leetcode--problems' will be set. RES
 is an alist comes from `leetcode--api-all-problems'."
   ;; user
-  (setq leetcode--user (plist-put leetcode--user :username (alist-get 'user_name  res)))
-  (setq leetcode--user (plist-put leetcode--user :solved   (alist-get 'num_solved res)))
-  (setq leetcode--user (plist-put leetcode--user :easy     (alist-get 'ac_easy    res)))
-  (setq leetcode--user (plist-put leetcode--user :medium   (alist-get 'ac_medium  res)))
-  (setq leetcode--user (plist-put leetcode--user :hard     (alist-get 'ac_hard    res)))
+  (setq leetcode--user (list :username (alist-get 'user_name  res)
+                             :solved   (alist-get 'num_solved res)
+                             :easy     (alist-get 'ac_easy    res)
+                             :medium   (alist-get 'ac_medium  res)
+                             :hard     (alist-get 'ac_hard    res)))
   ;; problem list
-  (setq leetcode--problems (plist-put leetcode--problems :num (alist-get 'num_total res)))
-  (setq leetcode--problems (plist-put leetcode--problems :tag "all"))
-  (setq leetcode--problems
-        (plist-put leetcode--problems :problems
-                   (let ((raw-vec (alist-get 'stat_status_pairs res))
-                         (len (plist-get leetcode--problems :num))
-                         problems)
-                     (dolist (i (number-sequence 0 (1- len)))
-                       (let* ((cur (aref raw-vec i))
-                              (status          (alist-get 'status cur))
-                              (stat            (alist-get 'stat cur))
-                              (question-id     (alist-get 'question_id stat))
-                              (total-submitted (alist-get 'total_submitted stat))
-                              (total-acs       (alist-get 'total_acs stat))
-                              (difficulty      (alist-get 'level (alist-get 'difficulty cur)))
-                              (paid-only (eq (alist-get 'paid_only cur) t)))
-                         (push
-                          (list
-                           :status status
-                           :id question-id
-                           :pos (- len i)
-                           :title (alist-get 'question__title stat)
-                           :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
-                           :difficulty difficulty
-                           :paid-only paid-only)
-                          problems)))
-                     problems))))
+  (setq leetcode--problems (list
+                            :num (alist-get 'num_total res)
+                            :tag "all"
+                            :problems
+                            (let ((raw-vec (alist-get 'stat_status_pairs res))
+                                  (len (alist-get 'num_total res))
+                                  problems)
+                              (dolist (i (number-sequence 0 (1- len)))
+                                (let* ((cur (aref raw-vec i))
+                                       (status          (alist-get 'status cur))
+                                       (stat            (alist-get 'stat cur))
+                                       (question-id     (alist-get 'question_id stat))
+                                       (total-submitted (alist-get 'total_submitted stat))
+                                       (total-acs       (alist-get 'total_acs stat))
+                                       (difficulty      (alist-get 'level (alist-get 'difficulty cur)))
+                                       (paid-only (eq (alist-get 'paid_only cur) t)))
+                                  (push
+                                   (list
+                                    :status status
+                                    :id question-id
+                                    :pos (- len i)
+                                    :title (alist-get 'question__title stat)
+                                    :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
+                                    :difficulty difficulty
+                                    :paid-only paid-only)
+                                   problems)))
+                              problems))))
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
 Such as 'Two Sum' will be converted to 'two-sum'."
   (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
-         (str2 (replace-regexp-in-string "(" "" str1))
-         (str3 (replace-regexp-in-string ")" "" str2))
-         (res (replace-regexp-in-string "," "" str3)))
+         (res (replace-regexp-in-string "[(),]" "" str1)))
     res))
 
 (defun leetcode--problem-descr-graphql-params (operation &optional vars)
@@ -350,7 +348,7 @@ Return a list of rows, each row is a vector:
       (deferred:next
         (lambda ()
           (message "LeetCode has been refreshing...")))
-    (leetcode-global-loading-mode t)
+    (leetcode--loading-mode t)
     (deferred:$
       (request-deferred
        leetcode--api-all-problems
@@ -376,7 +374,7 @@ Return a list of rows, each row is a vector:
                      rows))
               (tabulated-list-init-header)
               (tabulated-list-print t)
-              (leetcode-global-loading-mode -1))))))))
+              (leetcode--loading-mode -1))))))))
 
 ;;;###autoload
 (defun leetcode ()
@@ -500,7 +498,7 @@ request success."
    :error
    (cl-function
     (lambda (&rest args &key error-thrown &allow-other-keys)
-      (leetcode-global-loading-mode -1)
+      (leetcode--loading-mode -1)
       (message "LeetCode Login ERROR: %S" error-thrown)))))
 
 (defun leetcode--solving-layout ()
@@ -784,18 +782,10 @@ for current problem."
   "Minor mode to showing leetcode loading status."
   :lighter leetcode--loading-lighter
   :group 'leetcode
+  :global t
   (if leetcode--loading-mode
       (spinner-start leetcode--spinner)
     (spinner-stop leetcode--spinner)))
-
-(defun turn-on-leetcode-loading-mode ()
-  "Turn on function `leetcode--loading-mode'."
-  (leetcode--loading-mode t))
-
-;;;###autoload
-(define-global-minor-mode leetcode-global-loading-mode
-  leetcode--loading-mode turn-on-leetcode-loading-mode
-  :group 'leetcode)
 
 (provide 'leetcode)
 ;;; leetcode.el ends here
