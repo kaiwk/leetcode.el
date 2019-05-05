@@ -150,6 +150,19 @@ VALUE should be the referer."
           (request leetcode--url-login :sync t)
           (leetcode--csrf-token)))))
 
+(defun leetcode--base64url-decode-string (str)
+  "Base64URL-decode STR and return result."
+  (let* ((str-len (length str))
+         (str1 (replace-regexp-in-string "-" "+" str))
+         (str2 (replace-regexp-in-string "_" "/" str1))
+         (str3 (cond
+                ((eq (% str-len 4) 2)
+                 (concat str2 "=="))
+                ((eq (% str-len 4) 3)
+                 (concat str2 "="))
+                (t str2))))
+    (base64-decode-string str3)))
+
 (defun leetcode--login (account password)
   "Send login request and return a deferred object.
 When ACCOUNT or PASSWORD is empty string it will show a prompt."

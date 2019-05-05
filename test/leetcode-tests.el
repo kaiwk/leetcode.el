@@ -24,6 +24,14 @@
 
 (require 'leetcode)
 
+(defun leetcode--base64url-encode-string (str)
+  (let* ((str1 (base64-encode-string str))
+         (str2 (replace-regexp-in-string "+"   "-" str1))
+         (str3 (replace-regexp-in-string "/"   "_" str2))
+         (str4 (replace-regexp-in-string "=+$" "" str3))
+         (str5 (replace-regexp-in-string "\n"  "" str4)))
+    str5))
+
 (ert-deftest leetcode-test-slugify-title ()
   (should (equal (leetcode--slugify-title "Two Sum") "two-sum"))
   (should (equal (leetcode--slugify-title "Reverse Nodes in k-Group") "reverse-nodes-in-k-group"))
