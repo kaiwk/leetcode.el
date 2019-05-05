@@ -455,8 +455,9 @@ Return a list of rows, each row is a vector:
             (leetcode--check-submission
              interpret-id slug-title
              (lambda (res)
-               (let ((status-code (alist-get 'status_code res))
-                     (status-msg (alist-get 'status_msg res)))
+               (let* ((status-code (alist-get 'status_code res))
+                      (status-msg (alist-get 'status_msg res))
+                      (stdio-output (append (alist-get 'code_output res) nil)))
                  (with-current-buffer res-buf
                    (insert "Output:\n")
                    (cond
@@ -472,6 +473,10 @@ Return a list of rows, each row is a vector:
                      (insert status-msg)
                      (insert "\n\n")
                      (insert (alist-get 'full_compile_error res))))
+                   (insert "\n\n")
+                   (insert "Stdio:\n")
+                   (dolist (item stdio-output)
+                     (insert (concat item "\n")))
                    (insert "\n\n")
                    (leetcode--loading-mode -1)))))))))))
 
