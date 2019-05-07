@@ -22,6 +22,8 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 2. Move it to your load-path
 3. Require it in your emacs config
 
+If you use [spacemacs](https://github.com/syl20bnr/spacemacs), there is a [leetcode-emacs-layer](https://github.com/anmoljagetia/leetcode-emacs-layer). Thanks for [Anmol Jagetia](https://github.com/anmoljagetia)!
+
 # Configuration
 
 You can choose to set your LeetCode account and password like this:
