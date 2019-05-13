@@ -1,4 +1,5 @@
-# Introduction
+[![MELPA](https://melpa.org/packages/leetcode-badge.svg)](https://melpa.org/#/leetcode)
+# Introduction 
 
 LeetCode brings you offer, and now Emacs brings you LeetCode!
 
