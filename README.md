@@ -36,11 +36,12 @@ You can choose to set your LeetCode account and password like this:
 
 Put password as plain text into your emacs config may not be a good idea, you can either read your password from somewhere else, or you can ignore this setting completely, a prompt will be given everytime you enter `M-x leetcode`.
 
-You can also set your preferred LeetCode programming language by setting
-`leetcode-prefer-language`:
+You can also set your preferred LeetCode programming language and SQL implementation by setting
+`leetcode-prefer-language` and `leetcode-prefer-sql`:
 
 ```elisp
 (setq leetcode-prefer-language "python3")
+(setq leetcode-prefer-sql "mysql")
 ```
 
 All supported languages can be found in `leetcode--prefer-language-suffixes` variable.
