@@ -1,5 +1,5 @@
 [![MELPA](https://melpa.org/packages/leetcode-badge.svg)](https://melpa.org/#/leetcode)
-# Introduction 
+# Introduction
 
 LeetCode brings you offer, and now Emacs brings you LeetCode!
 
@@ -36,8 +36,7 @@ You can choose to set your LeetCode account and password like this:
 
 Put password as plain text into your emacs config may not be a good idea, you can either read your password from somewhere else, or you can ignore this setting completely, a prompt will be given everytime you enter `M-x leetcode`.
 
-You can also set your preferred LeetCode programming language and SQL implementation by setting
-`leetcode-prefer-language` and `leetcode-prefer-sql`:
+You can also set your preferred LeetCode programming language and SQL by setting `leetcode-prefer-language` and `leetcode-prefer-sql`:
 
 ```elisp
 (setq leetcode-prefer-language "python3")
@@ -94,4 +93,4 @@ It is a suggestion for you to use `Cask`, but if you don't want to bother to use
 
 `Cask` is a build tools for emacs lisp, you can think it of `npm` for emacs lisp.
 
-Enter project root, execute `cask install --dev`, this command will install all dependencies. After that, execute `cask emacs` which will start a emacs with extra `load-path` to load dependencies.
+Enter project root, execute `cask install`, this command will install all dependencies. After that, execute `cask emacs` which will start a emacs with extra `load-path` to load dependencies.

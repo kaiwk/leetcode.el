@@ -424,7 +424,7 @@ Return a list of rows, each row is a vector:
            :data (json-encode
                   `((data_input . ,(leetcode--buffer-content testcase-buf))
                     (judge_type . "small")
-                    (lang . ,leetcode--prefer-language)
+                    (lang . ,leetcode--lang)
                     (question_id . ,id)
                     (typed_code . ,(leetcode--buffer-content code-buf))))
            :parser 'json-read
@@ -612,7 +612,7 @@ following possible value:
                                        slug-title))
                   ,(cons "Content-Type" "application/json")
                   ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
-       :data (json-encode `((lang . ,leetcode--prefer-language)
+       :data (json-encode `((lang . ,leetcode--lang)
                             (question_id . ,id)
                             (typed_code . ,code)))
        :parser 'json-read)
@@ -675,10 +675,11 @@ python3, ruby, rust, scala, swift.")
   "LeetCode sql implementation.
 mysql, mssql, oraclesql.")
 
-(defvar leetcode--prefer-language leetcode-prefer-language
-  "LeetCode programming language or sql implementation for current problem internally")
+(defvar leetcode--lang leetcode-prefer-language
+  "LeetCode programming language or sql for current problem
+  internally. Default is programming language.")
 
-(defconst leetcode--prefer-language-suffixes
+(defconst leetcode--lang-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
     ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
@@ -689,17 +690,21 @@ mysql, mssql, oraclesql.")
 c, cpp, csharp, golang, java, javascript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
-(defun leetcode--set-prefer-language (snippets)
-  "Set `leetcode--prefer-language' based on langSlug in snippets."
-  (setq leetcode--prefer-language
-        (if (-find (lambda (s) (equal (alist-get 'langSlug s) leetcode-prefer-sql)) snippets)
-            leetcode-prefer-sql leetcode-prefer-language)))
+(defun leetcode--set-lang (snippets)
+  "Set `leetcode--lang' based on langSlug in snippets."
+  (setq leetcode--lang
+        (if (-find (lambda (s)
+                     (equal (alist-get 'langSlug s)
+                            leetcode-prefer-sql))
+                   snippets)
+            leetcode-prefer-sql
+          leetcode-prefer-language)))
 
 (defun leetcode--get-code-buffer-name (title)
   "Get code buffer name by TITLE and `leetcode-prefer-language'."
   (let ((suffix (assoc-default
-                 leetcode--prefer-language
-                 leetcode--prefer-language-suffixes)))
+                 leetcode--lang
+                 leetcode--lang-suffixes)))
     (concat (leetcode--slugify-title title) suffix)))
 
 (defun leetcode--start-coding (title snippets testcase)
@@ -710,18 +715,18 @@ TITLE is a problem title. SNIPPETS is a list of alist used to
 store eachprogramming language's snippet. TESTCASE is provided
 for current problem."
   (leetcode--solving-layout)
-  (leetcode--set-prefer-language snippets)
+  (leetcode--set-lang snippets)
   (let ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
         (suffix (assoc-default
-                 leetcode--prefer-language
-                 leetcode--prefer-language-suffixes)))
+                 leetcode--lang
+                 leetcode--lang-suffixes)))
     (unless code-buf
       (with-current-buffer (get-buffer-create (leetcode--get-code-buffer-name title))
         (setq code-buf (current-buffer))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (let ((snippet (-find (lambda (s)
                                 (equal (alist-get 'langSlug s)
-                                       leetcode--prefer-language))
+                                       leetcode--lang))
                               snippets)))
           (insert (alist-get 'code snippet)))))
     (display-buffer code-buf
