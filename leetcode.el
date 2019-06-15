@@ -728,7 +728,8 @@ for current problem."
                                 (equal (alist-get 'langSlug s)
                                        leetcode--lang))
                               snippets)))
-          (insert (alist-get 'code snippet)))))
+          (insert (alist-get 'code snippet))
+          (leetcode--replace-in-buffer "" ""))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
                        leetcode--display-code)
