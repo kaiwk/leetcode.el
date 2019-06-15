@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "25") (dash "2.15.0") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3"))
-;; Version: 0.1.0
+;; Version: 0.1.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -86,10 +86,10 @@ The elements of :problems has attributes:
 :paid-only  Boolean {t|nil}")
 
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
-(defconst leetcode--buffer-name          "*leetcode*")
-(defconst leetcode--descr-buffer-name    "*leetcode-description*")
-(defconst leetcode--testcase-buffer-name "*leetcode-testcase*")
-(defconst leetcode--result-buffer-name   "*leetcode-result*")
+(defconst leetcode--buffer-name             "*leetcode*")
+(defconst leetcode--description-buffer-name "*leetcode-description*")
+(defconst leetcode--testcase-buffer-name    "*leetcode-testcase*")
+(defconst leetcode--result-buffer-name      "*leetcode-result*")
 
 (defface leetcode-checkmark-face
   '((t (:foreground "#5CB85C")))
@@ -193,39 +193,36 @@ When ACCOUNT or PASSWORD is empty string it will show a prompt."
 If user isn't login, only `leetcode--problems' will be set. RES
 is an alist comes from `leetcode--api-all-problems'."
   ;; user
-  (setq leetcode--user (list :username (alist-get 'user_name  res)
-                             :solved   (alist-get 'num_solved res)
-                             :easy     (alist-get 'ac_easy    res)
-                             :medium   (alist-get 'ac_medium  res)
-                             :hard     (alist-get 'ac_hard    res)))
-  ;; problem list
-  (setq leetcode--problems (list
-                            :num (alist-get 'num_total res)
-                            :tag "all"
-                            :problems
-                            (let ((raw-vec (alist-get 'stat_status_pairs res))
-                                  (len (alist-get 'num_total res))
-                                  problems)
-                              (dolist (i (number-sequence 0 (1- len)))
-                                (let* ((cur (aref raw-vec i))
-                                       (status          (alist-get 'status cur))
-                                       (stat            (alist-get 'stat cur))
-                                       (question-id     (alist-get 'question_id stat))
-                                       (total-submitted (alist-get 'total_submitted stat))
-                                       (total-acs       (alist-get 'total_acs stat))
-                                       (difficulty      (alist-get 'level (alist-get 'difficulty cur)))
-                                       (paid-only (eq (alist-get 'paid_only cur) t)))
-                                  (push
-                                   (list
-                                    :status status
-                                    :id question-id
-                                    :pos (- len i)
-                                    :title (alist-get 'question__title stat)
-                                    :acceptance (format "%.1f%%" (* 100 (/ (float total-acs) total-submitted)))
-                                    :difficulty difficulty
-                                    :paid-only paid-only)
-                                   problems)))
-                              problems))))
+  (let-alist res
+    (setq leetcode--user (list :username .user_name
+                               :solved   .num_solved
+                               :easy     .ac_easy
+                               :medium   .ac_medium
+                               :hard     .ac_hard))
+    ;; problem list
+    (setq leetcode--problems (list
+                              :num .num_total
+                              :tag "all"
+                              :problems
+                              (let ((len .num_total)
+                                    problems)
+                                (dolist (i (number-sequence 0 (1- len)))
+                                  (let-alist (aref .stat_status_pairs i)
+                                    (push
+                                     (list
+                                      :status .status
+                                      :id .stat.question_id
+                                      :pos (- len i)
+                                      :title .stat.question__title
+                                      :acceptance (format
+                                                   "%.1f%%"
+                                                   (* 100
+                                                      (/ (float .stat.total_acs)
+                                                         .stat.total_submitted)))
+                                      :difficulty .difficulty.level
+                                      :paid-only (eq .paid_only t))
+                                     problems)))
+                                problems)))))
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
@@ -438,47 +435,43 @@ Return a list of rows, each row is a vector:
         (throw 'no-buffer "No testcase buffer and code buffer."))
       (deferred:nextc it
         (lambda (resp)
-          (let* ((data (request-response-data resp))
-                 (interpret-id (alist-get 'interpret_id data))
-                 (testcase (alist-get 'test_case data))
-                 (expected-id (alist-get 'interpret_expected_id data))
-                 (res-buf (get-buffer leetcode--result-buffer-name)))
-            (with-current-buffer res-buf
-              (erase-buffer)
-              (insert (concat "Your input:\n" testcase "\n\n")))
-            (leetcode--check-submission
-             expected-id slug-title
-             (lambda (res)
-               (let ((answer (aref (alist-get 'code_answer res) 0)))
-                 (with-current-buffer res-buf
-                   (insert (concat "Expected:\n" answer "\n\n"))))))
-            (leetcode--check-submission
-             interpret-id slug-title
-             (lambda (res)
-               (let* ((status-code (alist-get 'status_code res))
-                      (status-msg (alist-get 'status_msg res))
-                      (stdio-output (append (alist-get 'code_output res) nil)))
-                 (with-current-buffer res-buf
-                   (insert "Output:\n")
-                   (cond
-                    ((eq status-code 10)
-                     (insert (aref (alist-get 'code_answer res) 0)))
-                    ((eq status-code 14)
-                     (insert status-msg))
-                    ((eq status-code 15)
-                     (insert status-msg)
+          (let ((res-buf (get-buffer leetcode--result-buffer-name)))
+            (let-alist (request-response-data resp)
+              (with-current-buffer res-buf
+                (erase-buffer)
+                (insert (concat "Your input:\n" .test_case "\n\n")))
+              (leetcode--check-submission
+               .interpret_expected_id slug-title
+               (lambda (res)
+                 (let ((answer (aref (alist-get 'code_answer res) 0)))
+                   (with-current-buffer res-buf
+                     (insert (concat "Expected:\n" answer "\n\n"))))))
+              (leetcode--check-submission
+               .interpret_id slug-title
+               (lambda (res)
+                 (let-alist res
+                   (with-current-buffer res-buf
+                     (insert "Output:\n")
+                     (cond
+                      ((eq .status_code 10)
+                       (insert (aref .code_answer 0)))
+                      ((eq .status_code 14)
+                       (insert .status_msg))
+                      ((eq .status_code 15)
+                       (insert .status_msg)
+                       (insert "\n\n")
+                       (insert .full_runtime_error))
+                      ((eq .status_code 20)
+                       (insert .status_msg)
+                       (insert "\n\n")
+                       (insert .full_compile_error)))
+                     (when (> (length .code_output) 0)
+                       (insert "\n\n")
+                       (insert "Code output:\n")
+                       (dolist (item (append .code_output nil))
+                         (insert (concat item "\n"))))
                      (insert "\n\n")
-                     (insert (alist-get 'full_runtime_error res)))
-                    ((eq status-code 20)
-                     (insert status-msg)
-                     (insert "\n\n")
-                     (insert (alist-get 'full_compile_error res))))
-                   (insert "\n\n")
-                   (insert "Stdio:\n")
-                   (dolist (item stdio-output)
-                     (insert (concat item "\n")))
-                   (insert "\n\n")
-                   (leetcode--loading-mode -1)))))))))))
+                     (leetcode--loading-mode -1))))))))))))
 
 (defun leetcode--check-submission (submission-id slug-title cb)
   "Polling to check submission detail.
@@ -570,33 +563,24 @@ following possible value:
 - 14: Time Limit Exceeded
 - 15: Runtime Error. full_runtime_error
 - 20: Compile Error. full_compile_error"
-  (let ((buf (get-buffer-create leetcode--result-buffer-name))
-        (status-code     (alist-get 'status_code        submission-detail))
-        (runtime         (alist-get 'status_runtime     submission-detail))
-        (memory          (alist-get 'status_memory      submission-detail))
-        (runtime-perc    (alist-get 'runtime_percentile submission-detail))
-        (memory-perc     (alist-get 'memory_percentile  submission-detail))
-        (total-correct   (alist-get 'total_correct      submission-detail))
-        (total-testcases (alist-get 'total_testcases    submission-detail))
-        (status-msg      (alist-get 'status_msg         submission-detail))
-        (lang            (alist-get 'pretty_lang        submission-detail)))
-    (with-current-buffer buf
+  (let-alist submission-detail
+    (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
       (erase-buffer)
-      (insert (format "Status: %s\n" status-msg))
+      (insert (format "Status: %s\n" .status_msg))
       (cond
-       ((eq status-code 10)
-        (insert (format "%s/%s\n\n" total-testcases total-correct))
+       ((eq .status_code 10)
+        (insert (format "%s/%s\n\n" .total_testcases .total_correct))
         (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
-                        runtime runtime-perc lang))
+                        .status_runtime .runtime_percentile .pretty_lang))
         (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
-                        memory memory-perc lang)))
-       ((eq status-code 11)
-        (insert (format "%s/%s\n\n" total-testcases total-correct)))
-       ((eq status-code 14) nil)
-       ((eq status-code 15)
+                        .status_memory .memory_percentile .pretty_lang)))
+       ((eq .status_code 11)
+        (insert (format "%s/%s\n\n" .total_testcases .total_correct)))
+       ((eq .status_code 14) nil)
+       ((eq .status_code 15)
         (insert "\n")
         (insert (format (alist-get 'full_runtime_error submission-detail))))
-       ((eq status-code 20)
+       ((eq .status_code 20)
         (insert "\n")
         (insert (format (alist-get 'full_compile_error submission-detail)))))
       (display-buffer (current-buffer)
@@ -641,7 +625,7 @@ following possible value:
                (leetcode--show-submission-result res)
                (leetcode--loading-mode -1)))))))))
 
-(defun leetcode-show-descri ()
+(defun leetcode-show-description ()
   "Show current entry problem description.
 Get current entry by using `tabulated-list-get-entry' and use
 `shr-render-buffer' to render problem description."
@@ -651,37 +635,36 @@ Get current entry by using `tabulated-list-get-entry' and use
          (title (aref entry 2))
          (difficulty (aref entry 4))
          (problem (leetcode--parse-problem title))
-         (content (alist-get 'content problem))
-         (dislikes (alist-get 'dislikes problem))
-         (likes (alist-get 'likes problem))
-         (snippets (alist-get 'codeSnippets problem))
-         (testcase (alist-get 'sampleTestCase problem))
-         (buf-name leetcode--descr-buffer-name)
+         (buf-name leetcode--description-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
-    (when (get-buffer buf-name)
-      (kill-buffer buf-name))
-    (with-temp-buffer
-      (insert (concat "<h1>" pos ". " title "</h1>"))
-      (insert (concat (capitalize difficulty) html-margin
-                      "likes: " (number-to-string likes) html-margin
-                      "dislikes: " (number-to-string dislikes)))
-      (insert content)
-      (setq shr-current-font t)
-      (leetcode--replace-in-buffer "" "")
-      ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
-      (leetcode--replace-in-buffer "https" "http")
-      (shr-render-buffer (current-buffer)))
-    (with-current-buffer "*html*"
-      (save-match-data
-        (re-search-forward "dislikes: .*" nil t)
-        (insert (make-string 4 ?\s))
-        (insert-text-button "solve it"
-                            'action (lambda (btn)
-                                      (leetcode--start-coding title (append snippets nil) testcase))
-                            'help-echo "solve the problem."))
-      (rename-buffer buf-name)
-      (leetcode--problem-description-mode)
-      (switch-to-buffer (current-buffer)))))
+    (let-alist problem
+      (when (get-buffer buf-name)
+        (kill-buffer buf-name))
+      (with-temp-buffer
+        (insert (concat "<h1>" pos ". " title "</h1>"))
+        (insert (concat (capitalize difficulty) html-margin
+                        "likes: " (number-to-string .likes) html-margin
+                        "dislikes: " (number-to-string .dislikes)))
+        (insert .content)
+        (setq shr-current-font t)
+        (leetcode--replace-in-buffer "" "")
+        ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
+        (leetcode--replace-in-buffer "https" "http")
+        (shr-render-buffer (current-buffer)))
+      (with-current-buffer "*html*"
+        (save-match-data
+          (re-search-forward "dislikes: .*" nil t)
+          (insert (make-string 4 ?\s))
+          (insert-text-button "solve it"
+                              'action (lambda (btn)
+                                        (leetcode--start-coding
+                                         title
+                                         (append .codeSnippets nil)
+                                         .sampleTestCase))
+                              'help-echo "solve the problem."))
+        (rename-buffer buf-name)
+        (leetcode--problem-description-mode)
+        (switch-to-buffer (current-buffer))))))
 
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
@@ -748,7 +731,7 @@ for current problem."
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
-      (define-key map (kbd "RET") #'leetcode-show-descri)
+      (define-key map (kbd "RET") #'leetcode-show-description)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "g" #'leetcode-problems-refresh)
