@@ -1,0 +1,6 @@
+2019-07-07  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: use seq.el instead of dash, because it's in emacs
+	lisp standard lib, we don't need depending on third party lib.
+
+	Also, use auth-source.el to manage account and password.

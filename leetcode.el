@@ -5,8 +5,8 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "25") (dash "2.15.0") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3"))
-;; Version: 0.1.1
+;; Package-Requires: ((emacs "25") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3"))
+;; Version: 0.1.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@
 (require 'json)
 (require 'shr)
 
-(require 'dash)
+(require 'seq)
 (require 'request)
 (require 'request-deferred)             ; Asynchronous HTTP request
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
@@ -50,16 +50,6 @@
   "A Leetcode client."
   :prefix 'leetcode-
   :group 'tools)
-
-(defcustom leetcode-account ""
-  "LeetCode login account."
-  :type 'string
-  :group 'leetcode)
-
-(defcustom leetcode-password ""
-  "LeetCode login password."
-  :type 'string
-  :group 'leetcode)
 
 (defvar leetcode--user nil
   "User object.
@@ -151,52 +141,52 @@ VALUE should be the referer."
           (leetcode--csrf-token)))))
 
 (defun leetcode--credentials ()
-  (let* ((auth-source-creation-prompts
-          '((user  . "Leetcode user: ")
-            (secret . "Leetcode password for %u: ")))
-         (found (cl-first (auth-source-search :max 1
-                                              :host "leetcode.com"
-                                              :require '(:user :secret)
-                                              :create t))))
-    (when found
-      (eval `(ht ,@(--map `(,it ,(plist-get found it))
-                          '(:user :secret :save-function)))))))
+  (let ((auth-source-creation-prompts
+         '((user . "LeetCode user: ")
+           (secret . "LeetCode password for %u: ")))
+        (found (car (auth-source-search :max 1
+                                        :host leetcode--domain
+                                        :require '(:user :secret)
+                                        :create t))))
+    (if found
+        (list (plist-get found :user)
+              (let ((secret (plist-get found :secret)))
+                (if (functionp secret)
+                    (funcall secret)
+                  secret))
+              (plist-get found :save-function)))))
 
-(defun leetcode--credentials-username (credentials)
-  (ht-get credentials :user))
-
-(defun leetcode--credentials-password (credentials)
-  (let ((secret (ht-get credentials :secret)))
-    (if (functionp secret) (funcall secret) secret)))
-
-(defun leetcode--login (account password)
+(defun leetcode--login ()
   "Send login request and return a deferred object.
 When ACCOUNT or PASSWORD is empty string it will show a prompt."
-  (when (or (string-empty-p account) (string-empty-p password))
-    (let ((credentials (leetcode--credentials)))
-      (setq account (leetcode--credentials-username credentials))
-      (setq password (leetcode--credentials-password credentials))))
-  (leetcode--loading-mode t)
-  (request-deferred
-   leetcode--url-login
-   :type "POST"
-   :headers `(,leetcode--User-Agent
-              ,leetcode--X-Requested-With
-              ,(leetcode--referer leetcode--url-login)
-              ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
-   :parser 'buffer-string
-   :files `(("csrfmiddlewaretoken" . ("" :data ,(leetcode--csrf-token)))
-            ("login"               . ("" :data ,account))
-            ("password"            . ("" :data ,password)))
-   :success
-   (cl-function
-    (lambda (&key data &allow-other-keys)
-      (leetcode--loading-mode -1)))
-   :error
-   (cl-function
-    (lambda (&rest args &key error-thrown &allow-other-keys)
-      (leetcode--loading-mode -1)
-      (message "LeetCode Login ERROR: %S" error-thrown)))))
+  (let* ((credentials (leetcode--credentials))
+         (account (nth 0 credentials))
+         (password (nth 1 credentials))
+         (save-func (nth 2 credentials)))
+    (leetcode--loading-mode t)
+    (request-deferred
+     leetcode--url-login
+     :type "POST"
+     :headers `(,leetcode--User-Agent
+                ,leetcode--X-Requested-With
+                ,(leetcode--referer leetcode--url-login)
+                ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
+     :parser 'buffer-string
+     :files `(("csrfmiddlewaretoken" . ("" :data ,(leetcode--csrf-token)))
+              ("login"               . ("" :data ,account))
+              ("password"            . ("" :data ,password)))
+     :success
+     (cl-function
+      (lambda (&key data &allow-other-keys)
+        (leetcode--loading-mode -1)
+        (when (functionp save-func)
+          (funcall save-func))))
+     :error
+     (cl-function
+      (lambda (&rest args &key error-thrown &allow-other-keys)
+        (leetcode--loading-mode -1)
+        (message "LeetCode Login ERROR: %S" error-thrown)
+        (auth-source-forget+ :host leetcode--domain))))))
 
 (defun leetcode--login-p ()
   "Whether user is login."
@@ -310,7 +300,7 @@ row."
              (lambda (a col) (max a (length col)))
              acc
              (append row '())))
-          (-map #'length header-names)
+          (seq-map #'length header-names)
           rows)))
     (vconcat
      (-zip-with
@@ -404,7 +394,7 @@ Return a list of rows, each row is a vector:
           (deferred:next
             (lambda ()
               (message "User have been login in.")))
-        (leetcode--login leetcode-account leetcode-password))
+        (leetcode--login))
       (deferred:nextc it
         (lambda ()
           (deferred:nextc (leetcode-problems-refresh)
@@ -424,11 +414,11 @@ Return a list of rows, each row is a vector:
          (testcase-buf (get-buffer leetcode--testcase-buffer-name))
          (slug-title (with-current-buffer code-buf
                        (file-name-base (buffer-name))))
-         (id (plist-get (-find (lambda (p)
-                                 (equal slug-title
-                                        (leetcode--slugify-title
-                                         (plist-get p :title))))
-                               (plist-get leetcode--problems :problems))
+         (id (plist-get (seq-find (lambda (p)
+                                    (equal slug-title
+                                           (leetcode--slugify-title
+                                            (plist-get p :title))))
+                                  (plist-get leetcode--problems :problems))
                         :id)))
     (leetcode--loading-mode t)
     (deferred:$
@@ -615,11 +605,11 @@ following possible value:
          (code (leetcode--buffer-content code-buf))
          (slug-title (with-current-buffer code-buf
                        (file-name-base (buffer-name))))
-         (id (plist-get (-find (lambda (p)
-                                 (equal slug-title
-                                        (leetcode--slugify-title
-                                         (plist-get p :title))))
-                               (plist-get leetcode--problems :problems))
+         (id (plist-get (seq-find (lambda (p)
+                                    (equal slug-title
+                                           (leetcode--slugify-title
+                                            (plist-get p :title))))
+                                  (plist-get leetcode--problems :problems))
                         :id)))
     (leetcode--loading-mode t)
     (deferred:$
@@ -713,10 +703,10 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 (defun leetcode--set-lang (snippets)
   "Set `leetcode--lang' based on langSlug in snippets."
   (setq leetcode--lang
-        (if (-find (lambda (s)
-                     (equal (alist-get 'langSlug s)
-                            leetcode-prefer-sql))
-                   snippets)
+        (if (seq-find (lambda (s)
+                        (equal (alist-get 'langSlug s)
+                               leetcode-prefer-sql))
+                      snippets)
             leetcode-prefer-sql
           leetcode-prefer-language)))
 
@@ -744,10 +734,10 @@ for current problem."
       (with-current-buffer (get-buffer-create (leetcode--get-code-buffer-name title))
         (setq code-buf (current-buffer))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-        (let ((snippet (-find (lambda (s)
-                                (equal (alist-get 'langSlug s)
-                                       leetcode--lang))
-                              snippets)))
+        (let ((snippet (seq-find (lambda (s)
+                                   (equal (alist-get 'langSlug s)
+                                          leetcode--lang))
+                                 snippets)))
           (insert (alist-get 'code snippet))
           (leetcode--replace-in-buffer "" ""))))
     (display-buffer code-buf
