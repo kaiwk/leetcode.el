@@ -3,23 +3,13 @@
 
 LeetCode brings you offer, and now Emacs brings you LeetCode!
 
-# Dependencies
-
-## Emacs Library
-
-- dash.el
-- request.el
-- request-deferred.el
-- graphql.el
-- spinner.el
-
-## External software
-
-- cURL
-
 # Installation
 
-1. Clone this repository
+You can `package-install` it from melpa directly.
+
+## Manually
+
+1. Clone this repository and install all dependencies
 2. Move it to your load-path
 3. Require it in your emacs config
 
@@ -27,16 +17,9 @@ If you use [spacemacs](https://github.com/syl20bnr/spacemacs), there is a [leetc
 
 # Configuration
 
-You can choose to set your LeetCode account and password like this:
+First of all, you should have cURL installed.
 
-```elisp
-(setq leetcode-account "your-account")
-(setq leetcode-password "your-password")
-```
-
-Put password as plain text into your emacs config may not be a good idea, you can either read your password from somewhere else, or you can ignore this setting completely, a prompt will be given everytime you enter `M-x leetcode`.
-
-You can also set your preferred LeetCode programming language and SQL by setting `leetcode-prefer-language` and `leetcode-prefer-sql`:
+You can set your preferred LeetCode programming language and SQL by setting `leetcode-prefer-language` and `leetcode-prefer-sql`:
 
 ```elisp
 (setq leetcode-prefer-language "python3")
@@ -47,7 +30,7 @@ All supported languages can be found in `leetcode--prefer-language-suffixes` var
 
 # Usage
 
-1.  Execute `leetcode` command
+1. Execute `leetcode` command, then Emacs will prompt you to input account and password. If login successful, Emacs will save it into a file. If you are interested in what happend here, you can check [auth-source.el](https://www.gnu.org/software/emacs/manual/html_mono/auth.html).
 
 ![leetcode](images/leetcode.png)
 
@@ -59,8 +42,7 @@ In leetcode problems list buffer:
 | p      | cursor move up                   |
 | RET    | show current problem description |
 
-2. Press `<RET>`, show problem description, move cursor to 'solve it', press
-   `<RET>` again, start coding!
+2. Press `<RET>`, show problem description, move cursor to "solve it", press `<RET>` again, start coding!
 
 3. After finishing your code, you can edit testcase and execute `leetcode-try` or execute `leetcode-submit`.
 
