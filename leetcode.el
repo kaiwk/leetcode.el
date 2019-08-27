@@ -576,22 +576,27 @@ following possible value:
   (let-alist submission-detail
     (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
       (erase-buffer)
-      (insert (format "Status: %s\n" .status_msg))
+      (insert (format "Status: %s" .status_msg))
       (cond
        ((eq .status_code 10)
-        (insert (format "%s/%s\n\n" .total_testcases .total_correct))
+        (insert (format " (%s/%s)\n\n" .total_correct .total_testcases))
         (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
                         .status_runtime .runtime_percentile .pretty_lang))
         (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
                         .status_memory .memory_percentile .pretty_lang)))
        ((eq .status_code 11)
-        (insert (format "%s/%s\n\n" .total_testcases .total_correct)))
-       ((eq .status_code 14) nil)
+        (insert (format " (%s/%s)\n\n" .total_correct .total_testcases))
+        (insert (format "Test Case: \n%s\n\n" .input))
+        (insert (format "Answer: %s\n\n" .code_output))
+        (insert (format "Expected Answer: %s\n\n" .expected_output))
+        (insert (format "Stdout: \n%s\n" .std_output)))
+       ((eq .status_code 14)
+        (insert "\n"))
        ((eq .status_code 15)
-        (insert "\n")
+        (insert "\n\n")
         (insert (format (alist-get 'full_runtime_error submission-detail))))
        ((eq .status_code 20)
-        (insert "\n")
+        (insert "\n\n")
         (insert (format (alist-get 'full_compile_error submission-detail)))))
       (display-buffer (current-buffer)
                       '((display-buffer-reuse-window
