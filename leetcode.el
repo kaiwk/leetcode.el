@@ -640,6 +640,10 @@ following possible value:
                (leetcode--show-submission-result res)
                (leetcode--loading-mode -1)))))))))
 
+(defun leetcode--problem-link (title)
+  "Generate problem link from title."
+  (concat leetcode--base-url "/problems/" (leetcode--slugify-title title)))
+
 (defun leetcode-show-description ()
   "Show current entry problem description.
 Get current entry by using `tabulated-list-get-entry' and use
@@ -676,7 +680,12 @@ Get current entry by using `tabulated-list-get-entry' and use
                                          title
                                          (append .codeSnippets nil)
                                          .sampleTestCase))
-                              'help-echo "solve the problem."))
+                              'help-echo "solve the problem.")
+          (insert (make-string 4 ?\s))
+          (insert-text-button "link"
+                              'action (lambda (btn)
+                                        (browse-url (leetcode--problem-link title)))
+                              'help-echo "open the problem in browser."))
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
