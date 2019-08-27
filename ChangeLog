@@ -1,3 +1,8 @@
+2019-08-27  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el (leetcode--problem-link): add problem button in
+	description buffer
+
 2019-07-07  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el: use seq.el instead of dash, because it's in emacs
