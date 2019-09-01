@@ -728,8 +728,7 @@ Get current entry by using `tabulated-list-get-entry' and use
                         "dislikes: " (number-to-string .dislikes)))
         (insert .content)
         (setq shr-current-font t)
-        (leetcode--replace-in-buffer "
-" "")
+        (leetcode--replace-in-buffer "" "")
         ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
         (leetcode--replace-in-buffer "https" "http")
         (shr-render-buffer (current-buffer)))
@@ -816,8 +815,7 @@ for current problem."
                                           leetcode--lang))
                                  snippets)))
           (insert (alist-get 'code snippet))
-          (leetcode--replace-in-buffer "
-" ""))))
+          (leetcode--replace-in-buffer "" ""))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
                        leetcode--display-code)
