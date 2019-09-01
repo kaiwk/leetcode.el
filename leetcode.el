@@ -51,6 +51,14 @@
   :prefix 'leetcode-
   :group 'tools)
 
+(defcustom leetcode-solving-layout 'default
+  "Layout used for solving problem.
+`default' using the default layout.
+`tian' using a slightly modified layout which is 2 by 2 grids."
+  :type '(choice (const :tag "Default" default)
+                 (const :tag "Tian 2x2" tian))
+  :group 'leetcode)
+
 (defvar leetcode--user nil
   "User object.
 The object with following attributes:
@@ -509,7 +517,7 @@ request success."
       (leetcode--loading-mode -1)
       (message "LeetCode Login ERROR: %S" error-thrown)))))
 
-(defun leetcode--solving-layout ()
+(defun leetcode--solving-default-layout ()
   "Specify layout for solving problem.
 +---------------+----------------+
 |               |                |
@@ -522,7 +530,6 @@ request success."
 |               |Submit/Testcases|
 |               |    Result      |
 +---------------+----------------+"
-  (delete-other-windows)
   (split-window-horizontally)
   (other-window 1)
   (split-window-below)
@@ -531,38 +538,93 @@ request success."
   (other-window -1)
   (other-window -1))
 
+(defun leetcode--solving-tian-layout ()
+  "Specify layout for solving problem.
++---------------+----------------+
+|               |                |
+|               |                |
+|     Code      |   Description  |
+|               |                |
+|               |                |
++---------------+----------------+
+|   Customize   |Submit/Testcases|
+|   Testcases   |    Result      |
++---------------+----------------+"
+  (split-window-horizontally)
+  (split-window-below)
+  (other-window 1)
+  (split-window-below)
+  (delete-window)
+  (other-window 1)
+  (other-window 1)
+  (split-window-below)
+  (other-window 1)
+  (split-window-below)
+  (delete-window)
+  (other-window -1)
+  (other-window -1))
+
+(defun leetcode--solving-layout ()
+    "Specify layout for solving problem"
+    (delete-other-windows)
+    (cond ((eq leetcode-solving-layout 'default) (leetcode--solving-default-layout))
+          ((eq leetcode-solving-layout 'tian) (leetcode--solving-tian-layout))
+        )
+)
+
 (defun leetcode--display-result (buffer &optional alist)
   "Display function for LeetCode result.
 BUFFER is the one to show LeetCode result. ALIST is a combined
 alist specified in `display-buffer-alist'."
-  (let ((window (window-next-sibling
-                 (window-next-sibling
-                  (window-top-child
-                   (window-next-sibling
-                    (window-left-child
-                     (frame-root-window))))))))
-    (set-window-buffer window buffer)
-    window))
+  (cond ((eq leetcode-solving-layout 'default) (let ((window (window-next-sibling
+                                                                (window-next-sibling
+                                                                  (window-top-child
+                                                                    (window-next-sibling
+                                                                      (window-left-child
+                                                                        (frame-root-window))))))))
+                                                    (set-window-buffer window buffer)
+                                                    window))
+        ((eq leetcode-solving-layout 'tian) (let ((window (window-next-sibling
+                                                            (window-top-child
+                                                              (window-next-sibling
+                                                                (window-left-child
+                                                                  (frame-root-window)))))))
+                                                (set-window-buffer window buffer)
+                                                window))
+      ))
 
 (defun leetcode--display-testcase (buffer &optional alist)
   "Display function for LeetCode testcase.
 BUFFER is the one to show LeetCode testcase. ALIST is a combined
 alist specified in `display-buffer-alist'."
-  (let ((window (window-next-sibling
-                 (window-top-child
-                  (window-next-sibling
-                   (window-left-child
-                    (frame-root-window)))))))
-    (set-window-buffer window buffer)
-    window))
+    (cond ((eq leetcode-solving-layout 'default) (let ((window  (window-next-sibling
+                                                                  (window-top-child
+                                                                    (window-next-sibling
+                                                                      (window-left-child
+                                                                        (frame-root-window)))))))
+                                                    (set-window-buffer window buffer)
+                                                    window))
+          ((eq leetcode-solving-layout 'tian) (let ((window (window-next-sibling
+                                                              (window-top-child
+                                                                (window-left-child
+                                                                  (frame-root-window))))))
+                                                  (set-window-buffer window buffer)
+                                                  window))
+        ))
 
 (defun leetcode--display-code (buffer &optional alist)
   "Display function for LeetCode code.
 BUFFER is the one to show LeetCode code. ALIST is a combined
 alist specified in `display-buffer-alist'."
-  (let ((window (window-left-child (frame-root-window))))
-    (set-window-buffer window buffer)
-    window))
+  (cond ((eq leetcode-solving-layout 'default) (let ((window (window-left-child (frame-root-window))))
+                                                   (set-window-buffer window buffer)
+                                                   window))
+        ((eq leetcode-solving-layout 'tian) (let ((window (window-top-child
+                                                              (window-left-child
+                                                                  (frame-root-window)))))
+                                                (set-window-buffer window buffer)
+                                                window))
+      ))
 
 (defun leetcode--show-submission-result (submission-detail)
   "Show error info in `leetcode--result-buffer-name' based on status code.
@@ -666,13 +728,19 @@ Get current entry by using `tabulated-list-get-entry' and use
                         "dislikes: " (number-to-string .dislikes)))
         (insert .content)
         (setq shr-current-font t)
-        (leetcode--replace-in-buffer "" "")
+        (leetcode--replace-in-buffer "
+" "")
         ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
         (leetcode--replace-in-buffer "https" "http")
         (shr-render-buffer (current-buffer)))
       (with-current-buffer "*html*"
         (save-match-data
           (re-search-forward "dislikes: .*" nil t)
+          (insert (make-string 4 ?\s))
+          (insert-text-button "link"
+                              'action (lambda (btn)
+                                        (browse-url (leetcode--problem-link title)))
+                              'help-echo "open the problem in browser."))
           (insert (make-string 4 ?\s))
           (insert-text-button "solve it"
                               'action (lambda (btn)
@@ -681,11 +749,6 @@ Get current entry by using `tabulated-list-get-entry' and use
                                          (append .codeSnippets nil)
                                          .sampleTestCase))
                               'help-echo "solve the problem.")
-          (insert (make-string 4 ?\s))
-          (insert-text-button "link"
-                              'action (lambda (btn)
-                                        (browse-url (leetcode--problem-link title)))
-                              'help-echo "open the problem in browser."))
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
@@ -753,7 +816,8 @@ for current problem."
                                           leetcode--lang))
                                  snippets)))
           (insert (alist-get 'code snippet))
-          (leetcode--replace-in-buffer "" ""))))
+          (leetcode--replace-in-buffer "
+" ""))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
                        leetcode--display-code)
