@@ -75,6 +75,9 @@ The elements of :problems has attributes:
 :difficulty Number {1,2,3}
 :paid-only  Boolean {t|nil}")
 
+(defvar leetcode--problem-titles nil
+    "Problem titles that have been open in solving layout.")
+
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name             "*leetcode*")
 (defconst leetcode--description-buffer-name "*leetcode-description*")
@@ -666,7 +669,8 @@ Get current entry by using `tabulated-list-get-entry' and use
                         "dislikes: " (number-to-string .dislikes)))
         (insert .content)
         (setq shr-current-font t)
-        (leetcode--replace-in-buffer "" "")
+        (leetcode--replace-in-buffer "
+" "")
         ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
         (leetcode--replace-in-buffer "https" "http")
         (shr-render-buffer (current-buffer)))
@@ -689,6 +693,22 @@ Get current entry by using `tabulated-list-get-entry' and use
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
+
+ (defun leetcode--kill-buff-and-delete-window (buf)
+    "Kill buff and delete its window"
+    (delete-windows-on buf t)
+    (kill-buffer buf))
+
+ (defun leetcode-quit ()
+    "Close and delete leetcode related buffers and windows"
+    (interactive)
+    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--buffer-name))
+    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--description-buffer-name))
+    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--result-buffer-name))
+    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--testcase-buffer-name))
+    (mapc (lambda (x) (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--get-code-buffer-name x))))
+          leetcode--problem-titles)
+    )
 
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
@@ -738,6 +758,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'.
 TITLE is a problem title. SNIPPETS is a list of alist used to
 store eachprogramming language's snippet. TESTCASE is provided
 for current problem."
+  (add-to-list 'leetcode--problem-titles title)
   (leetcode--solving-layout)
   (leetcode--set-lang snippets)
   (let ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
@@ -753,7 +774,8 @@ for current problem."
                                           leetcode--lang))
                                  snippets)))
           (insert (alist-get 'code snippet))
-          (leetcode--replace-in-buffer "" ""))))
+          (leetcode--replace-in-buffer "
+" ""))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
                        leetcode--display-code)
