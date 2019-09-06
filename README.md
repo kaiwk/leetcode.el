@@ -17,8 +17,6 @@ If you use [spacemacs](https://github.com/syl20bnr/spacemacs), there is a [leetc
 
 # Configuration
 
-First of all, you should have cURL installed.
-
 You can set your preferred LeetCode programming language and SQL by setting `leetcode-prefer-language` and `leetcode-prefer-sql`:
 
 ```elisp
@@ -26,7 +24,7 @@ You can set your preferred LeetCode programming language and SQL by setting `lee
 (setq leetcode-prefer-sql "mysql")
 ```
 
-All supported languages can be found in `leetcode--prefer-language-suffixes` variable.
+All supported languages can be found in variable `leetcode--prefer-language-suffixes`.
 
 # Usage
 
@@ -53,19 +51,8 @@ In leetcode problems list buffer:
 If you are unable to start Leetcode, set these variables and try again to see a full stacktrace:
 
 ```elisp
-(setq request-message-level 'debug)
-(setq request-log-level 'debug)
+(setq url-debug t)
 ```
-
-## Windows
-
-If you are using Windows, it is possible that `curl` executable comes from `Windows\System32\curl.exe` (you can check it by running `where curl` in the command line), which can give the following error:
-
-```bash
-curl: option --compressed: the installed libcurl version doesn't support this
-```
-
-To solve this error, it is suggested to use `curl` provided by Git. Add `<path to Git>\mingw64\bin` to the `Path`.
 
 # Contributing
 

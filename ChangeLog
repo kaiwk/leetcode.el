@@ -1,3 +1,9 @@
+2019-09-06  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: use emacs-aio and remove request.el and
+	deferred.el, now you don't need cURL installed.
+	* README.md: update README
+
 2019-08-27  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el (leetcode--problem-link): add problem button in
