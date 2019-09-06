@@ -1,3 +1,4 @@
+(source gnu)
 (source melpa)
 
 (package-file "leetcode.el")
@@ -9,4 +10,5 @@
  (depends-on "request")
  (depends-on "request-deferred")
  (depends-on "graphql")
- (depends-on "spinner"))
+ (depends-on "spinner")
+ (depends-on "aio"))

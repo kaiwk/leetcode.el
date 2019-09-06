@@ -39,9 +39,11 @@
 (require 'shr)
 
 (require 'seq)
+(require 'mm-url)
 (require 'request)
 (require 'request-deferred)             ; Asynchronous HTTP request
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
+(require 'aio)
 
 (require 'spinner)
 
@@ -76,7 +78,7 @@ The elements of :problems has attributes:
 :paid-only  Boolean {t|nil}")
 
 (defvar leetcode--problem-titles nil
-    "Problem titles that have been open in solving layout.")
+  "Problem titles that have been open in solving layout.")
 
 (defvar leetcode-checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name             "*leetcode*")
@@ -128,29 +130,35 @@ The elements of :problems has attributes:
 (defconst leetcode--api-try                 (concat leetcode--base-url "/problems/%s/interpret_solution/"))
 
 
-(defun leetcode--referer (value)
+(defsubst leetcode--referer (value)
   "It will return an alist as the HTTP Referer Header.
 VALUE should be the referer."
   (cons "Referer" value))
 
-(defun leetcode--csrf-token ()
+(defun leetcode--maybe-csrf-token ()
+  "Return csrf token if it exists, otherwise return nil."
+  (if-let ((cookie (seq-find
+                    (lambda (item)
+                      (string= (aref item 1)
+                               "csrftoken"))
+                    (url-cookie-retrieve leetcode--domain "/" t))))
+      (aref cookie 2)))
+
+(aio-defun leetcode--csrf-token ()
   "Return csrf token."
-  (let ((token (assoc-default
-                "csrftoken"
-                (request-cookie-alist leetcode--domain "/" t))))
-    (or token
-        (progn
-          (request leetcode--url-login :sync t)
-          (leetcode--csrf-token)))))
+  (unless (leetcode--maybe-csrf-token)
+    (aio-await (aio-url-retrieve leetcode--url-login)))
+  (leetcode--maybe-csrf-token))
 
 (defun leetcode--credentials ()
   (let ((auth-source-creation-prompts
          '((user . "LeetCode user: ")
            (secret . "LeetCode password for %u: ")))
-        (found (car (auth-source-search :max 1
-                                        :host leetcode--domain
-                                        :require '(:user :secret)
-                                        :create t))))
+        (found (car (auth-source-search
+                     :max 1
+                     :host leetcode--domain
+                     :require '(:user :secret)
+                     :create t))))
     (if found
         (list (plist-get found :user)
               (let ((secret (plist-get found :secret)))
@@ -159,47 +167,56 @@ VALUE should be the referer."
                   secret))
               (plist-get found :save-function)))))
 
-(defun leetcode--login ()
+(defsubst leetcode--multipart-form-data (name value)
+  `("file"
+    ("name"         . ,name)
+    ("filedata"     . ,value)
+    ("filename"     . "")
+    ("content-type" . "")))
+
+(aio-defun leetcode--login ()
   "Send login request and return a deferred object.
 When ACCOUNT or PASSWORD is empty string it will show a prompt."
+  (leetcode--loading-mode t)
   (let* ((credentials (leetcode--credentials))
          (account (nth 0 credentials))
          (password (nth 1 credentials))
-         (save-func (nth 2 credentials)))
-    (leetcode--loading-mode t)
-    (request-deferred
-     leetcode--url-login
-     :type "POST"
-     :headers `(,leetcode--User-Agent
-                ,leetcode--X-Requested-With
-                ,(leetcode--referer leetcode--url-login)
-                ,(cons leetcode--X-CSRFToken (leetcode--csrf-token)))
-     :parser 'buffer-string
-     :files `(("csrfmiddlewaretoken" . ("" :data ,(leetcode--csrf-token)))
-              ("login"               . ("" :data ,account))
-              ("password"            . ("" :data ,password)))
-     :success
-     (cl-function
-      (lambda (&key data &allow-other-keys)
-        (leetcode--loading-mode -1)
-        (when (functionp save-func)
-          (funcall save-func))))
-     :error
-     (cl-function
-      (lambda (&rest args &key error-thrown &allow-other-keys)
-        (leetcode--loading-mode -1)
-        (message "LeetCode Login ERROR: %S" error-thrown)
-        (auth-source-forget+ :host leetcode--domain))))))
+         (save-func (nth 2 credentials))
+         (boundary (mml-compute-boundary '()))
+         (csrf-token (aio-await (leetcode--csrf-token)))
+         (url-request-method "POST")
+         (url-request-extra-headers
+          `(("Content-Type" . ,(concat "multipart/form-data; boundary=" boundary))
+            ,leetcode--User-Agent
+            ,leetcode--X-Requested-With
+            ,(leetcode--referer leetcode--url-login)
+            ,(cons leetcode--X-CSRFToken csrf-token)))
+         (url-request-data
+          (mm-url-encode-multipart-form-data
+           (list
+            (leetcode--multipart-form-data "csrfmiddlewaretoken" csrf-token)
+            (leetcode--multipart-form-data "login" account)
+            (leetcode--multipart-form-data "password" password))
+           boundary))
+         (result (aio-await (aio-url-retrieve leetcode--url-login))))
+    (if-let ((error-info (plist-get (car result) :error)))
+        (progn
+          (message "LeetCode Login ERROR: %S" error-info)
+          (auth-source-forget+ :host leetcode--domain))
+      (when (functionp save-func)
+        (funcall save-func)))
+    (leetcode--loading-mode -1)))
 
 (defun leetcode--login-p ()
   "Whether user is login."
   (let ((username (plist-get leetcode--user :username)))
     (and username
          (not (string-empty-p username))
-         (assoc-default
-          "LEETCODE_SESSION"
-          (request-cookie-alist
-           (concat "." leetcode--domain) "/" t)))))
+         (seq-find
+          (lambda (item)
+            (string= (aref item 1)
+                     "LEETCODE_SESSION"))
+          (url-cookie-retrieve leetcode--domain "/" t)))))
 
 (defun leetcode--set-user-and-problems (res)
   "Set `leetcode--user' and `leetcode--problems'.
@@ -351,58 +368,56 @@ Return a list of rows, each row is a vector:
              rows)))
     rows))
 
-(defun leetcode-problems-refresh ()
+(aio-defun leetcode--fetch-user-and-problems ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
   (if leetcode--loading-mode
-      (deferred:next
-        (lambda ()
-          (message "LeetCode has been refreshing...")))
+      (message "LeetCode has been refreshing...")
     (leetcode--loading-mode t)
-    (deferred:$
-      (request-deferred
-       leetcode--api-all-problems
-       :headers `(,leetcode--User-Agent
-                  ,leetcode--X-Requested-With
-                  ,(leetcode--referer leetcode--url-login))
-       :parser 'json-read)
-      (deferred:nextc it
-        (lambda (response)
-          (leetcode--set-user-and-problems (request-response-data response))))
-      (deferred:nextc it
-        (lambda ()
-          (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
-                 (rows (leetcode--problems-rows))
-                 (headers (leetcode--make-tabulated-headers header-names rows)))
-            (with-current-buffer (get-buffer-create leetcode--buffer-name)
-              (leetcode--problems-mode)
-              (setq tabulated-list-format headers)
-              (setq tabulated-list-entries
-                    (-zip-with
-                     (lambda (i x) (list i x))
-                     (-iterate '1+ 0 (length rows))
-                     rows))
-              (tabulated-list-init-header)
-              (tabulated-list-print t)
-              (leetcode--loading-mode -1))))))))
+    (let ((url-request-method "GET")
+          (url-request-extra-headers
+           `(,leetcode--User-Agent
+             ,leetcode--X-Requested-With
+             ,(leetcode--referer leetcode--url-login)))
+          (result (aio-await (aio-url-retrieve leetcode--api-all-problems))))
+      (leetcode--loading-mode -1)
+      (if-let ((error-info (plist-get (car result) :error)))
+          (message "LeetCode login ERROR: %S" error-info)
+        (with-current-buffer (cdr result)
+          (goto-char url-http-end-of-headers)
+          (json-read))))))
+
+(aio-defun leetcode--refresh ()
+  "Refresh problems and update `tabulated-list-entries'."
+  (if-let ((users-and-problems
+            (aio-await (leetcode--fetch-user-and-problems))))
+      (leetcode--set-user-and-problems users-and-problems)
+    (message "LeetCode parse user and problems failed"))
+  (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty"))
+         (rows (leetcode--problems-rows))
+         (headers (leetcode--make-tabulated-headers header-names rows)))
+    (with-current-buffer (get-buffer-create leetcode--buffer-name)
+      (leetcode--problems-mode)
+      (setq tabulated-list-format headers)
+      (setq tabulated-list-entries
+            (-zip-with
+             (lambda (i x) (list i x))
+             (-iterate '1+ 0 (length rows))
+             rows))
+      (tabulated-list-init-header)
+      (tabulated-list-print t)
+      (leetcode--loading-mode -1))))
 
 ;;;###autoload
-(defun leetcode ()
+(aio-defun leetcode ()
   "Show leetcode problems buffer."
   (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
-    (deferred:$
-      (if (leetcode--login-p)
-          (deferred:next
-            (lambda ()
-              (message "User have been login in.")))
-        (leetcode--login))
-      (deferred:nextc it
-        (lambda ()
-          (deferred:nextc (leetcode-problems-refresh)
-            (lambda ()
-              (switch-to-buffer leetcode--buffer-name))))))))
+    (unless (leetcode--login-p)
+      (aio-await (leetcode--login)))
+    (aio-await (leetcode--refresh))
+    (switch-to-buffer leetcode--buffer-name)))
 
 (defun leetcode--buffer-content (buf)
   "Get content without text properties of BUF."
@@ -693,21 +708,20 @@ Get current entry by using `tabulated-list-get-entry' and use
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
 
- (defun leetcode--kill-buff-and-delete-window (buf)
-    "Kill buff and delete its window"
-    (delete-windows-on buf t)
-    (kill-buffer buf))
+(defun leetcode--kill-buff-and-delete-window (buf)
+  "Kill buff and delete its window"
+  (delete-windows-on buf t)
+  (kill-buffer buf))
 
- (defun leetcode-quit ()
-    "Close and delete leetcode related buffers and windows"
-    (interactive)
-    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--buffer-name))
-    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--description-buffer-name))
-    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--result-buffer-name))
-    (leetcode--kill-buff-and-delete-window (get-buffer leetcode--testcase-buffer-name))
-    (mapc (lambda (x) (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--get-code-buffer-name x))))
-          leetcode--problem-titles)
-    )
+(defun leetcode-quit ()
+  "Close and delete leetcode related buffers and windows"
+  (interactive)
+  (leetcode--kill-buff-and-delete-window (get-buffer leetcode--buffer-name))
+  (leetcode--kill-buff-and-delete-window (get-buffer leetcode--description-buffer-name))
+  (leetcode--kill-buff-and-delete-window (get-buffer leetcode--result-buffer-name))
+  (leetcode--kill-buff-and-delete-window (get-buffer leetcode--testcase-buffer-name))
+  (mapc (lambda (x) (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--get-code-buffer-name x))))
+        leetcode--problem-titles))
 
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
