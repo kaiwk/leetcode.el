@@ -5,8 +5,8 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "25") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3"))
-;; Version: 0.1.3
+;; Package-Requires: ((emacs "26") (request-deferred "0.2.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
+;; Version: 0.1.4
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -261,7 +261,7 @@ Such as 'Two Sum' will be converted to 'two-sum'."
          (res (replace-regexp-in-string "[(),]" "" str1)))
     res))
 
-(defun leetcode--problem-descr-graphql-params (operation &optional vars)
+(defun leetcode--problem-graphql-params (operation &optional vars)
   "Construct a GraphQL parameter.
 OPERATION and VARS are LeetCode GraphQL parameters."
   (list
@@ -278,7 +278,7 @@ OPERATION and VARS are LeetCode GraphQL parameters."
                                         (codeSnippets langSlug code)))))
    (if vars (cons "variables" vars))))
 
-(defun leetcode--parse-problem (title)
+(aio-defun leetcode--fetch-problem (title)
   "Fetch single problem.
 TITLE is a problem's title.
 Return a object with following attributes:
@@ -287,16 +287,20 @@ Return a object with following attributes:
 :content   String
 :topicTags String"
   (let* ((slug-title (leetcode--slugify-title title))
-         (resp (request
-                leetcode--api-graphql
-                :type "POST"
-                :headers `(,leetcode--User-Agent
-                           ,(cons "Content-Type" "application/json"))
-                :data (json-encode (leetcode--problem-descr-graphql-params
-                                    "questionData"
-                                    (list (cons "titleSlug" slug-title))))
-                :parser 'json-read :sync t)))
-    (alist-get 'question (alist-get 'data (request-response-data resp)))))
+         (url-request-method "POST")
+         (url-request-extra-headers
+          `(,leetcode--User-Agent
+            ,(cons "Content-Type" "application/json")))
+         (url-request-data
+          (json-encode (leetcode--problem-graphql-params
+                        "questionData"
+                        (list (cons "titleSlug" slug-title)))))
+         (result (aio-await (aio-url-retrieve leetcode--api-graphql))))
+    (if-let ((error-info (plist-get (car result) :error)))
+        (message "LeetCode Login ERROR: %S" error-info)
+      (with-current-buffer (cdr result)
+        (goto-char url-http-end-of-headers)
+        (alist-get 'question (alist-get 'data (json-read)))))))
 
 (defun leetcode--replace-in-buffer (regex to)
   "Replace string matched REGEX in `current-buffer' to TO."
@@ -662,7 +666,7 @@ following possible value:
   "Generate problem link from title."
   (concat leetcode--base-url "/problems/" (leetcode--slugify-title title)))
 
-(defun leetcode-show-description ()
+(aio-defun leetcode-show-current-problem ()
   "Show current entry problem description.
 Get current entry by using `tabulated-list-get-entry' and use
 `shr-render-buffer' to render problem description."
@@ -671,7 +675,7 @@ Get current entry by using `tabulated-list-get-entry' and use
          (pos (aref entry 1))
          (title (aref entry 2))
          (difficulty (aref entry 4))
-         (problem (leetcode--parse-problem title))
+         (problem (aio-await (leetcode--fetch-problem title)))
          (buf-name leetcode--description-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
     (let-alist problem
@@ -810,7 +814,7 @@ for current problem."
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
-      (define-key map (kbd "RET") #'leetcode-show-description)
+      (define-key map (kbd "RET") #'leetcode-show-current-problem)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "g" #'leetcode-problems-refresh)
