@@ -5,8 +5,8 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "26") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
-;; Version: 0.1.4
+;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
+;; Version: 0.1.5
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@
 (require 'seq)
 (require 'mm-url)
 
+(require 'dash)
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
 (require 'aio)
 (require 'spinner)
