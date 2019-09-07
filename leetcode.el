@@ -397,6 +397,7 @@ Return a list of rows, each row is a vector:
 
 (aio-defun leetcode-refresh ()
   "Refresh problems and update `tabulated-list-entries'."
+  (interactive)
   (if-let ((users-and-problems
             (aio-await (leetcode--fetch-user-and-problems))))
       (leetcode--set-user-and-problems users-and-problems)
