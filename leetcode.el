@@ -417,7 +417,7 @@ Return a list of rows, each row is a vector:
       (tabulated-list-print t)
       (leetcode--loading-mode -1))))
 
-;;;###autoload
+;;;###autoload (autoload 'leetcode "leetcode" t t)
 (aio-defun leetcode ()
   "Show leetcode problems buffer."
   (interactive)
