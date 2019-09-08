@@ -417,16 +417,21 @@ Return a list of rows, each row is a vector:
       (tabulated-list-print t)
       (leetcode--loading-mode -1))))
 
-;;;###autoload (autoload 'leetcode "leetcode" t t)
-(aio-defun leetcode ()
+(aio-defun leetcode-1 ()
   "Show leetcode problems buffer."
-  (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
     (unless (leetcode--login-p)
       (aio-await (leetcode--login)))
     (aio-await (leetcode-refresh))
     (switch-to-buffer leetcode--buffer-name)))
+
+;;;###autoload
+(defun leetcode ()
+  "A wrapper for leetcode-1, because emacs-aio can not be
+autoloaded."
+  (interactive)
+  (leetcode-1))
 
 (defun leetcode--buffer-content (buf)
   "Get content without text properties of BUF."
