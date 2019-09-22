@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
-;; Version: 0.1.6
+;; Version: 0.1.7
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -417,8 +417,9 @@ Return a list of rows, each row is a vector:
       (tabulated-list-print t)
       (leetcode--loading-mode -1))))
 
-(aio-defun leetcode-1 ()
+(aio-defun leetcode--async ()
   "Show leetcode problems buffer."
+  (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
     (unless (leetcode--login-p)
@@ -428,10 +429,10 @@ Return a list of rows, each row is a vector:
 
 ;;;###autoload
 (defun leetcode ()
-  "A wrapper for leetcode-1, because emacs-aio can not be
-autoloaded."
+  "A wrapper for leetcode--async, because emacs-aio can not be
+autoloaded. see: https://github.com/skeeto/emacs-aio/issues/3"
   (interactive)
-  (leetcode-1))
+  (leetcode--async))
 
 (defun leetcode--buffer-content (buf)
   "Get content without text properties of BUF."
