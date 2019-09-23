@@ -1,4 +1,4 @@
-;;; leetcode.el --- An leetcode client.          -*- lexical-binding: t; -*-
+;;; leetcode.el --- An leetcode client.          -*- lexical-binding: t; no-byte-compile: t -*-
 
 ;; Copyright (C) 2019  Wang Kai
 
@@ -419,7 +419,6 @@ Return a list of rows, each row is a vector:
 
 (aio-defun leetcode--async ()
   "Show leetcode problems buffer."
-  (interactive)
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
     (unless (leetcode--login-p)
