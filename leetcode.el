@@ -38,6 +38,7 @@
 (require 'json)
 (require 'shr)
 (require 'seq)
+(require 'subr-x)
 (require 'mm-url)
 
 (require 'dash)
