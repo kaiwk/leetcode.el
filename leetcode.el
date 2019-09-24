@@ -149,6 +149,7 @@ VALUE should be the referer."
   (leetcode--maybe-csrf-token))
 
 (defun leetcode--credentials ()
+  "Receive user account and password."
   (let ((auth-source-creation-prompts
          '((user . "LeetCode user: ")
            (secret . "LeetCode password for %u: ")))
@@ -166,6 +167,7 @@ VALUE should be the referer."
               (plist-get found :save-function)))))
 
 (defun leetcode--multipart-form-data (name value)
+  "Generate multipart form data with NAME and VALUE."
   `("file"
     ("name"         . ,name)
     ("filedata"     . ,value)
@@ -428,8 +430,8 @@ Return a list of rows, each row is a vector:
 
 ;;;###autoload
 (defun leetcode ()
-  "A wrapper for leetcode--async, because emacs-aio can not be
-autoloaded. see: https://github.com/skeeto/emacs-aio/issues/3"
+  "A wrapper for `leetcode--async', because emacs-aio can not be autoloaded.
+see: https://github.com/skeeto/emacs-aio/issues/3."
   (interactive)
   (leetcode--async))
 
@@ -680,7 +682,7 @@ following possible value:
           (leetcode--loading-mode -1))))))
 
 (defun leetcode--problem-link (title)
-  "Generate problem link from title."
+  "Generate problem link from TITLE."
   (concat leetcode--base-url "/problems/" (leetcode--slugify-title title)))
 
 (aio-defun leetcode-show-current-problem ()
@@ -730,12 +732,12 @@ Get current entry by using `tabulated-list-get-entry' and use
         (switch-to-buffer (current-buffer))))))
 
 (defun leetcode--kill-buff-and-delete-window (buf)
-  "Kill buff and delete its window"
+  "Kill BUF and delete its window."
   (delete-windows-on buf t)
   (kill-buffer buf))
 
 (defun leetcode-quit ()
-  "Close and delete leetcode related buffers and windows"
+  "Close and delete leetcode related buffers and windows."
   (interactive)
   (leetcode--kill-buff-and-delete-window (get-buffer leetcode--buffer-name))
   (leetcode--kill-buff-and-delete-window (get-buffer leetcode--description-buffer-name))
@@ -754,8 +756,8 @@ python3, ruby, rust, scala, swift.")
 mysql, mssql, oraclesql.")
 
 (defvar leetcode--lang leetcode-prefer-language
-  "LeetCode programming language or sql for current problem
-  internally. Default is programming language.")
+  "LeetCode programming language or sql for current problem internally.
+Default is programming language.")
 
 (defconst leetcode--lang-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
@@ -769,7 +771,7 @@ c, cpp, csharp, golang, java, javascript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defun leetcode--set-lang (snippets)
-  "Set `leetcode--lang' based on langSlug in snippets."
+  "Set `leetcode--lang' based on langSlug in SNIPPETS."
   (setq leetcode--lang
         (if (seq-find (lambda (s)
                         (equal (alist-get 'langSlug s)
@@ -868,6 +870,7 @@ for current problem."
 
 (define-minor-mode leetcode--loading-mode
   "Minor mode to showing leetcode loading status."
+  :require 'leetcode
   :lighter leetcode--loading-lighter
   :group 'leetcode
   :global t
