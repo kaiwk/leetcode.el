@@ -34,11 +34,16 @@ All supported languages can be found in variable `leetcode--prefer-language-suff
 
 In leetcode problems list buffer:
 
-| keymap | command                          |
-|--------|----------------------------------|
-| n      | cursor move down                 |
-| p      | cursor move up                   |
-| RET    | show current problem description |
+| keymap | command                                |
+|--------|----------------------------------------|
+| n      | cursor move down                       |
+| p      | cursor move up                         |
+| s      | filter problem by regex                |
+| t      | filter problem by tag                  |
+| /      | clear filters                          |
+| g      | refresh without fetching from LeetCode |
+| G      | refresh all data                       |
+| RET    | show current problem description       |
 
 2. Press `<RET>`, show problem description, move cursor to "solve it", press `<RET>` again, start coding!
 

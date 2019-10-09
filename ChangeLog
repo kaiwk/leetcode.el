@@ -1,3 +1,7 @@
+2019-10-09  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el (leetcode--fetch-problem): filter problems by regex or tag
+
 2019-09-06  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el: use emacs-aio and remove request.el and
