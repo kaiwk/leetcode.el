@@ -426,7 +426,7 @@ Return a list of rows, each row is a vector:
             (string-match-p leetcode--filter-regex title))
         t)
       (if leetcode--filter-tag
-          (let ((tags (split-string (aref row 5) ",")))
+          (let ((tags (split-string (aref row 5) ", ")))
             (member leetcode--filter-tag tags))
         t)))
    rows))
