@@ -1,3 +1,7 @@
+2019-10-10  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: submissions detail API modification
+
 2019-10-09  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el (leetcode--fetch-problem): filter problems by regex or tag

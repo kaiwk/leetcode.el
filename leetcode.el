@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
-;; Version: 0.1.7
+;; Version: 0.1.8
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -79,11 +79,12 @@ The elements of :problems has attributes:
 :tags       List")
 
 (defvar leetcode--all-tags nil
-  "Problems tags")
+  "All problems tags.")
 
 (defvar leetcode--problem-titles nil
   "Problem titles that have been open in solving layout.")
 
+(defvar leetcode-retry-threshold 20 "`leetcode-try' or `leetcode-submit' retry times.")
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by leetcode tag.")
 
@@ -138,6 +139,7 @@ The elements of :problems has attributes:
 (defconst leetcode--api-try                 (concat leetcode--base-url "/problems/%s/interpret_solution/"))
 
 (defun to-list (vec)
+  "Convert VEC to list."
   (append vec '()))
 
 (defun leetcode--referer (value)
@@ -270,8 +272,7 @@ USER-AND-PROBLEMS is an alist comes from
              problems)))))
 
 (defun leetcode--set-tags (all-tags)
-  "Set `leetcode--all-tags' and `leetcode--all-problems' with
-ALL-TAGS."
+  "Set `leetcode--all-tags' and `leetcode--all-problems' with ALL-TAGS."
   (let-alist all-tags
     ;; set problems tags
     (dolist (problem (plist-get leetcode--all-problems :problems))
@@ -417,7 +418,7 @@ Return a list of rows, each row is a vector:
     rows))
 
 (defun leetcode--filter (rows)
-  "Filter ROWS by `leetcode--filter-regex' and `leetcode--filter-tag'"
+  "Filter ROWS by `leetcode--filter-regex' and `leetcode--filter-tag'."
   (seq-filter
    (lambda (row)
      (and
@@ -445,7 +446,7 @@ Return a list of rows, each row is a vector:
   (leetcode-refresh))
 
 (defun leetcode-set-filter-tag ()
-  "Set `leetcode--filter-tag'"
+  "Set `leetcode--filter-tag'."
   (interactive)
   (setq leetcode--filter-tag
         (completing-read "Tags: " leetcode--all-tags))
@@ -540,12 +541,12 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
          (testcase-buf (get-buffer leetcode--testcase-buffer-name))
          (slug-title (with-current-buffer code-buf
                        (file-name-base (buffer-name))))
-         (id (plist-get (seq-find (lambda (p)
-                                    (equal slug-title
-                                           (leetcode--slugify-title
-                                            (plist-get p :title))))
-                                  (plist-get leetcode--all-problems :problems))
-                        :id)))
+         (cur-problem (seq-find (lambda (p)
+                                  (equal slug-title
+                                         (leetcode--slugify-title
+                                          (plist-get p :title))))
+                                (plist-get leetcode--all-problems :problems)))
+         (id (plist-get cur-problem :id)))
     (let* ((url-request-method "POST")
            (url-request-extra-headers
             `(,leetcode--User-Agent
@@ -572,42 +573,40 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
             (with-current-buffer res-buf
               (erase-buffer)
               (insert (concat "Your input:\n" .test_case "\n\n")))
-            ;; poll expected
-            (let ((expected_res (aio-await (leetcode--check-submission .interpret_expected_id slug-title))))
-              (while (not expected_res)
-                (aio-await (aio-sleep 0.5))
-                (setq expected_res (aio-await (leetcode--check-submission .interpret_expected_id slug-title))))
-              (let ((answer (aref (alist-get 'code_answer expected_res) 0)))
-                (with-current-buffer res-buf
-                  (insert (concat "Expected:\n" answer "\n\n")))))
             ;; poll interpreted
-            (let ((actual_res (aio-await (leetcode--check-submission .interpret_id slug-title))))
-              (while (not actual_res)
+            (let ((actual_res (aio-await (leetcode--check-submission .interpret_id slug-title)))
+                  (retry-times 0))
+              (while (and (not actual_res) (< retry-times leetcode-retry-threshold))
                 (aio-await (aio-sleep 0.5))
-                (setq actual_res (aio-await (leetcode--check-submission .interpret_id slug-title))))
-              (let-alist actual_res
-                (with-current-buffer res-buf
-                  (insert "Output:\n")
-                  (cond
-                   ((eq .status_code 10)
-                    (insert (aref .code_answer 0)))
-                   ((eq .status_code 14)
-                    (insert .status_msg))
-                   ((eq .status_code 15)
-                    (insert .status_msg)
-                    (insert "\n\n")
-                    (insert .full_runtime_error))
-                   ((eq .status_code 20)
-                    (insert .status_msg)
-                    (insert "\n\n")
-                    (insert .full_compile_error)))
-                  (when (> (length .code_output) 0)
-                    (insert "\n\n")
-                    (insert "Code output:\n")
-                    (dolist (item (append .code_output nil))
-                      (insert (concat item "\n"))))
-                  (insert "\n\n")
-                  (leetcode--loading-mode -1))))))))))
+                (setq actual_res (aio-await (leetcode--check-submission .interpret_id slug-title)))
+                (setq retry-times (1+ retry-times)))
+              (if (< retry-times leetcode-retry-threshold)
+                  (let-alist actual_res
+                    (with-current-buffer res-buf
+                      (goto-char (point-max))
+                      (insert (concat "Expected:\n" (aref .expected_code_answer 0) "\n\n"))
+                      (insert "Output:\n")
+                      (cond
+                       ((eq .status_code 10)
+                        (insert (aref .code_answer 0)))
+                       ((eq .status_code 14)
+                        (insert .status_msg))
+                       ((eq .status_code 15)
+                        (insert .status_msg)
+                        (insert "\n\n")
+                        (insert .full_runtime_error))
+                       ((eq .status_code 20)
+                        (insert .status_msg)
+                        (insert "\n\n")
+                        (insert .full_compile_error)))
+                      (when (> (length .code_output) 0)
+                        (insert "\n\n")
+                        (insert "Code output:\n")
+                        (dolist (item (append .code_output nil))
+                          (insert (concat item "\n"))))
+                      (insert "\n\n")))
+                (message "LeetCode try timeout.")))
+            (leetcode--loading-mode -1)))))))
 
 (aio-defun leetcode--check-submission (submission-id slug-title)
   "Polling to check submission detail.
@@ -764,12 +763,16 @@ following possible value:
                   (progn (goto-char url-http-end-of-headers)
                          (json-read))))
                (submission-id (alist-get 'submission_id resp))
-               (submission-res (aio-await (leetcode--check-submission submission-id slug-title))))
+               (submission-res (aio-await (leetcode--check-submission submission-id slug-title)))
+               (retry-times 0))
           ;; poll submission result
-          (while (not submission-res)
+          (while (and (not submission-res) (< retry-times leetcode-retry-threshold))
             (aio-await (aio-sleep 0.5))
-            (setq submission-res (aio-await (leetcode--check-submission submission-id slug-title))))
-          (leetcode--show-submission-result submission-res)
+            (setq submission-res (aio-await (leetcode--check-submission submission-id slug-title)))
+            (setq retry-times (1+ retry-times)))
+          (if (< retry-times leetcode-retry-threshold)
+              (leetcode--show-submission-result submission-res)
+            (message "LeetCode submit timeout."))
           (leetcode--loading-mode -1))))))
 
 (defun leetcode--problem-link (title)
