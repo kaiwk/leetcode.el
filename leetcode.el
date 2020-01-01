@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
-;; Version: 0.1.9
+;; Version: 0.1.10
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -188,38 +188,25 @@ VALUE should be the referer."
     ("filename"     . "")
     ("content-type" . "")))
 
-(aio-defun leetcode--login ()
+(defun leetcode--login ()
   "Send login request and return a deferred object.
 When ACCOUNT or PASSWORD is empty string it will show a prompt."
   (leetcode--loading-mode t)
-  (let* ((credentials (leetcode--credentials))
-         (account (nth 0 credentials))
-         (password (nth 1 credentials))
-         (save-func (nth 2 credentials))
-         (boundary (mml-compute-boundary '()))
-         (csrf-token (aio-await (leetcode--csrf-token)))
-         (url-request-method "POST")
-         (url-request-extra-headers
-          `(("Content-Type" . ,(concat "multipart/form-data; boundary=" boundary))
-            ,leetcode--User-Agent
-            ,leetcode--X-Requested-With
-            ,(leetcode--referer leetcode--url-login)
-            ,(cons leetcode--X-CSRFToken csrf-token)))
-         (url-request-data
-          (mm-url-encode-multipart-form-data
-           (list
-            (leetcode--multipart-form-data "csrfmiddlewaretoken" csrf-token)
-            (leetcode--multipart-form-data "login" account)
-            (leetcode--multipart-form-data "password" password))
-           boundary))
-         (result (aio-await (aio-url-retrieve leetcode--url-login))))
-    (if-let ((error-info (plist-get (car result) :error)))
-        (progn
-          (message "LeetCode login failed: %S" error-info)
-          (auth-source-forget+ :host leetcode--domain))
-      (when (functionp save-func)
-        (funcall save-func)))
-    (leetcode--loading-mode -1)))
+  (let ((my-cookies (executable-find "my_cookies")))
+    (set-process-filter
+     (start-process "my_cookies" nil "my_cookies")
+     (lambda (proc string)
+       (let* ((cookies-list (seq-filter
+                             (lambda (s) (not (string-empty-p s)))
+                             (split-string string "\n")))
+              (cookies-pairs (seq-map
+                              (lambda (s) (split-string s))
+                              cookies-list))
+              (leetcode-session (cadr (assoc "LEETCODE_SESSION" cookies-pairs)))
+              (leetcode-csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
+         (url-cookie-store "LEETCODE_SESSION" leetcode-session nil leetcode--domain "/" t)
+         (url-cookie-store "csrftoken" leetcode-csrftoken nil leetcode--domain "/" t)))))
+  (leetcode--loading-mode -1))
 
 (defun leetcode--login-p ()
   "Whether user is login."
@@ -516,7 +503,7 @@ Return a list of rows, each row is a vector:
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
     (unless (leetcode--login-p)
-      (aio-await (leetcode--login)))
+      (leetcode--login))
     (aio-await (leetcode-refresh-fetch))
     (switch-to-buffer leetcode--buffer-name)))
 

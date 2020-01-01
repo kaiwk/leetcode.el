@@ -1,3 +1,7 @@
+2020-01-01  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: leetcode.com don't allow third party login, so we retrieve LeetCode session from Chrome cookies
+
 2019-10-11  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el (leetcode-try): When encounter syntax error, .expected_code_answer is null. Handle this situation depend on status_code.

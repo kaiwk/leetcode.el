@@ -5,15 +5,16 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 # Installation
 
-You can `package-install` it from melpa directly.
+- Vanilla Emacs: `package-install` it from melpa directly
+- [Spacemacs](https://github.com/syl20bnr/spacemacs): [leetcode-emacs-layer](https://github.com/anmoljagetia/leetcode-emacs-layer)
+
+LeetCode do not allow third party login, one workaround is restore LeetCode session from local Chrome cookies. To do this, you need to install a Python3 package called [my\_cookies](https://github.com/kaiwk/my_cookies): `pip3 install my_cookies`
 
 ## Manually
 
 1. Clone this repository and install all dependencies
 2. Move it to your load-path
 3. Require it in your emacs config
-
-If you use [spacemacs](https://github.com/syl20bnr/spacemacs), there is a [leetcode-emacs-layer](https://github.com/anmoljagetia/leetcode-emacs-layer). Thanks for [Anmol Jagetia](https://github.com/anmoljagetia)!
 
 # Configuration
 
@@ -28,7 +29,7 @@ All supported languages can be found in variable `leetcode--prefer-language-suff
 
 # Usage
 
-1. Execute `leetcode` command, then Emacs will prompt you to input account and password. If login successful, Emacs will save it into a file. If you are interested in what happend here, you can check [auth-source.el](https://www.gnu.org/software/emacs/manual/html_mono/auth.html).
+1. Execute `leetcode` command.
 
 ![leetcode](images/leetcode.png)
 
