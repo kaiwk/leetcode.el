@@ -380,6 +380,8 @@ Return a list of rows, each row is a vector:
               (number-to-string (plist-get p :pos))
               ;; title
               (plist-get p :title)
+              ;; paid-only
+              (if (eq (plist-get p :paid-only) t) "Y" "N")
               ;; acceptance
               (plist-get p :acceptance)
               ;; difficulty
@@ -471,7 +473,7 @@ Return a list of rows, each row is a vector:
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."
   (interactive)
-  (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty" "Tags"))
+  (let* ((header-names '(" " "#" "Problem" "Paid-Only" "Acceptance" "Difficulty" "Tags"))
          (rows (leetcode--filter (leetcode--problems-rows)))
          (headers (leetcode--make-tabulated-headers header-names rows)))
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
