@@ -4,6 +4,7 @@
 
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
+;; Package-Version: 20200101.1111
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0"))
 ;; Version: 0.1.10
@@ -529,7 +530,8 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
   (let* ((code-buf (current-buffer))
          (testcase-buf (get-buffer leetcode--testcase-buffer-name))
          (slug-title (with-current-buffer code-buf
-                       (file-name-base (buffer-name))))
+                       (file-name-base (car (cdr (split-string  (buffer-name) "_"))))))
+         
          (cur-problem (seq-find (lambda (p)
                                   (equal slug-title
                                          (leetcode--slugify-title
@@ -726,7 +728,7 @@ following possible value:
   (let* ((code-buf (current-buffer))
          (code (leetcode--buffer-content code-buf))
          (slug-title (with-current-buffer code-buf
-                       (file-name-base (buffer-name))))
+                       (file-name-base (car (cdr (split-string  (buffer-name) "_"))))))
          (id (plist-get (seq-find (lambda (p)
                                     (equal slug-title
                                            (leetcode--slugify-title
@@ -841,6 +843,12 @@ python3, ruby, rust, scala, swift.")
   "LeetCode sql implementation.
 mysql, mssql, oraclesql.")
 
+(defcustom leetcode-source-directory "~/leetcode"
+  "Location to save source files."
+  :group 'leetcode-location
+  :type 'string)
+
+
 (defvar leetcode--lang leetcode-prefer-language
   "LeetCode programming language or sql for current problem internally.
 Default is programming language.")
@@ -883,19 +891,40 @@ for current problem."
   (add-to-list 'leetcode--problem-titles title)
   (leetcode--solving-layout)
   (leetcode--set-lang snippets)
-  (let ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
-        (suffix (assoc-default
-                 leetcode--lang
-                 leetcode--lang-suffixes)))
+  (let* ((code-buf (get-buffer (leetcode--get-code-buffer-name title)))
+         (suffix (assoc-default
+                  leetcode--lang
+                  leetcode--lang-suffixes))
+         (slug-title  (leetcode--slugify-title title))
+         (cur-problem  (seq-find (lambda (p)
+                                   (equal slug-title
+                                          (leetcode--slugify-title
+                                           (plist-get p :title))))
+                                 (plist-get leetcode--all-problems :problems)))
+         (cur-id (plist-get cur-problem :id))         
+         )
+
     (unless code-buf
-      (with-current-buffer (get-buffer-create (leetcode--get-code-buffer-name title))
+      (with-current-buffer
+          (find-file-noselect
+           (format "%s/%04d_%s" leetcode-source-directory cur-id (leetcode--get-code-buffer-name title))
+           )
         (setq code-buf (current-buffer))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (let ((snippet (seq-find (lambda (s)
                                    (equal (alist-get 'langSlug s)
                                           leetcode--lang))
                                  snippets)))
-          (insert (alist-get 'code snippet))
+
+          (setq code-inserted
+                (save-excursion
+                  (goto-char (point-min))
+                  (search-forward (string-trim (alist-get 'code snippet) ) nil t))
+                )
+          (unless code-inserted
+            (insert (alist-get 'code snippet))
+            )
+          
           (leetcode--replace-in-buffer "" ""))))
     (display-buffer code-buf
                     '((display-buffer-reuse-window
