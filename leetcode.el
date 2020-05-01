@@ -528,7 +528,8 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
   (let* ((code-buf (current-buffer))
          (testcase-buf (get-buffer leetcode--testcase-buffer-name))
          (slug-title (with-current-buffer code-buf
-                       (file-name-base (buffer-name))))
+                       (file-name-base (car (cdr (split-string  (buffer-name) "_"))))))
+         
          (cur-problem (seq-find (lambda (p)
                                   (equal slug-title
                                          (leetcode--slugify-title
@@ -725,7 +726,7 @@ following possible value:
   (let* ((code-buf (current-buffer))
          (code (leetcode--buffer-content code-buf))
          (slug-title (with-current-buffer code-buf
-                       (file-name-base (buffer-name))))
+                       (file-name-base (car (cdr (split-string  (buffer-name) "_"))))))
          (id (plist-get (seq-find (lambda (p)
                                     (equal slug-title
                                            (leetcode--slugify-title
