@@ -8,7 +8,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 - Vanilla Emacs: `package-install` it from melpa directly
 - [Spacemacs](https://github.com/syl20bnr/spacemacs): [leetcode-emacs-layer](https://github.com/anmoljagetia/leetcode-emacs-layer)
 
-LeetCode do not allow third party login, one workaround is restore LeetCode session from local Chrome cookies. To do this, you need to install a Python3 package called [my\_cookies](https://github.com/kaiwk/my_cookies): `pip3 install my_cookies`
+LeetCode do not allow third party login, one workaround is restore LeetCode session from local Chrome cookies. By default, this package will install a Python3 package called [my\_cookies](https://github.com/kaiwk/my_cookies), or you can install it manually: `pip3 install my_cookies`.
 
 ## Manually
 
@@ -26,6 +26,13 @@ You can set your preferred LeetCode programming language and SQL by setting `lee
 ```
 
 All supported languages can be found in variable `leetcode--prefer-language-suffixes`.
+
+You can save solution by setting `leetcode-save-solutions`:
+
+```
+(setq leetcode-save-solutions t)
+(setq leetcode-directory "~/leetcode")
+```
 
 # Usage
 
@@ -54,18 +61,4 @@ In leetcode problems list buffer:
 
 # Debug
 
-If you are unable to start Leetcode, set these variables and try again to see a full stacktrace:
-
-```elisp
-(setq url-debug t)
-```
-
-# Contributing
-
-This package use [Cask](https://cask.readthedocs.io/en/latest/guide/introduction.html) to develop, build and test.
-
-It is a suggestion for you to use `Cask`, but if you don't want to bother to use it, it's totally fine too.
-
-`Cask` is a build tools for emacs lisp, you can think it of `npm` for emacs lisp.
-
-Enter project root, execute `cask install`, this command will install all dependencies. After that, execute `cask emacs` which will start a emacs with extra `load-path` to load dependencies.
+Call `leetcode-toggle-debug`, log will output in `*leetcode-log*` buffer.

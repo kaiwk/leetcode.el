@@ -1,3 +1,7 @@
+2020-05-23  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: add option for saving solutions, install my_cookies automatically.
+
 2020-01-01  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el: leetcode.com don't allow third party login, so we retrieve LeetCode session from Chrome cookies
