@@ -29,7 +29,7 @@ All supported languages can be found in variable `leetcode--prefer-language-suff
 
 You can save solution by setting `leetcode-save-solutions`:
 
-```
+```elisp
 (setq leetcode-save-solutions t)
 (setq leetcode-directory "~/leetcode")
 ```

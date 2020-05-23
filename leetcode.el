@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.12
+;; Version: 0.1.13
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@
 
 ;;;###autoload
 (defun leetcode-toggle-debug ()
+  "Toggle debug."
   (interactive)
   (if (leetcode--log-debugging-p)
       (progn
@@ -69,12 +70,14 @@
       (message "leetcode enable debug"))))
 
 (defun leetcode--install-my-cookie ()
+  "Install leetcode dependencies."
   (let ((async-shell-command-display-buffer t))
     (async-shell-command
      "pip3 install my_cookies"
      (get-buffer-create "*leetcode-install*"))))
 
 (defun leetcode--check-deps ()
+  "Check if all dependencies installed."
   (if (executable-find "my_cookies")
       t
     (leetcode--install-my-cookie)
@@ -558,6 +561,8 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
      (point-min) (point-max))))
 
 (defun leetcode--get-slug-title-before-try/submit (code-buf)
+  "Get slug title before try or submit with CODE-BUF.
+LeetCode require slug-title as the request parameters."
   (with-current-buffer code-buf
     (if leetcode-save-solutions
         (file-name-base (cadr (split-string (buffer-name) "_")))
@@ -885,10 +890,10 @@ python3, ruby, rust, scala, swift.")
 mysql, mssql, oraclesql.")
 
 (defvar leetcode-directory "~/leetcode"
-  "Directory to save solutions")
+  "Directory to save solutions.")
 
 (defvar leetcode-save-solutions nil
-  "If it's t, save leetcode solutions to `leetcode-directory'")
+  "If it's t, save leetcode solutions to `leetcode-directory'.")
 
 (defvar leetcode--lang leetcode-prefer-language
   "LeetCode programming language or sql for current problem internally.
@@ -927,6 +932,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
       title-with-suffix)))
 
 (defun leetcode--get-code-buffer (buf-name)
+  "Get code buffer by BUF-NAME."
   (if (not leetcode-save-solutions)
       (get-buffer-create buf-name)
     (unless (file-directory-p leetcode-directory)
@@ -936,6 +942,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
              buf-name))))
 
 (defun leetcode--get-problem (slug-title)
+  "Get problem from `leetcode--all-problems' by SLUG-TITLE."
   (seq-find (lambda (p)
               (equal slug-title
                      (leetcode--slugify-title
@@ -943,6 +950,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
             (plist-get leetcode--all-problems :problems)))
 
 (defun leetcode--get-problem-id (slug-title)
+  "Get problem id by SLUG-TITLE."
   (let ((problem (leetcode--get-problem "two-sum")))
     (plist-get problem :id)))
 
