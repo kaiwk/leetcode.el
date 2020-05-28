@@ -951,7 +951,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defun leetcode--get-problem-id (slug-title)
   "Get problem id by SLUG-TITLE."
-  (let ((problem (leetcode--get-problem "two-sum")))
+  (let ((problem (leetcode--get-problem slug-title)))
     (plist-get problem :id)))
 
 (defun leetcode--start-coding (title snippets testcase)
