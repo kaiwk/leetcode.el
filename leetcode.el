@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.13
+;; Version: 0.1.14
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -951,7 +951,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defun leetcode--get-problem-id (slug-title)
   "Get problem id by SLUG-TITLE."
-  (let ((problem (leetcode--get-problem "two-sum")))
+  (let ((problem (leetcode--get-problem slug-title)))
     (plist-get problem :id)))
 
 (defun leetcode--start-coding (title snippets testcase)
