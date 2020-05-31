@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.16
+;; Version: 0.1.17
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -224,11 +224,12 @@ VALUE should be the referer."
     ("filename"     . "")
     ("content-type" . "")))
 
-(defun leetcode--login ()
+(aio-defun leetcode--login ()
   "Steal LeetCode login session from local browser.
 It also cleans LeetCode cookies in `url-cookie-file'."
   (leetcode--loading-mode t)
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
+  (aio-await (leetcode--csrf-token))    ;knock knock, whisper me the mysterious information
   (let* ((my-cookies (executable-find "my_cookies"))
          (my-cookies-output (shell-command-to-string my-cookies))
          (cookies-list (seq-filter
@@ -239,7 +240,8 @@ It also cleans LeetCode cookies in `url-cookie-file'."
                          cookies-list))
          (leetcode-session (cadr (assoc "LEETCODE_SESSION" cookies-pairs)))
          (leetcode-csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
-    (leetcode--debug "login: %s" my-cookies-output)
+    (leetcode--debug "login session: %s" leetcode-session)
+    (leetcode--debug "login csrftoken: %s" leetcode-csrftoken)
     (url-cookie-store "LEETCODE_SESSION" leetcode-session nil leetcode--domain "/" t)
     (url-cookie-store "csrftoken" leetcode-csrftoken nil leetcode--domain "/" t))
   (leetcode--loading-mode -1))
@@ -546,7 +548,7 @@ Return a list of rows, each row is a vector:
   (if (get-buffer leetcode--buffer-name)
       (switch-to-buffer leetcode--buffer-name)
     (unless (leetcode--login-p)
-      (leetcode--login))
+      (aio-await (leetcode--login)))
     (aio-await (leetcode-refresh-fetch))
     (switch-to-buffer leetcode--buffer-name)))
 

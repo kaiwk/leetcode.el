@@ -62,3 +62,7 @@ In leetcode problems list buffer:
 # Debug
 
 Call `leetcode-toggle-debug`, log will output in `*leetcode-log*` buffer.
+
+# Contribution
+
+Please submit PR to develop branch.
