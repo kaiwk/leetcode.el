@@ -1,3 +1,8 @@
+2020-05-31  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el: Cleans LeetCode cookies in `url-cookie-file' before
+	login, because we can't figure out when to expire the session.
+
 2020-05-23  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el: add option for saving solutions, install my_cookies automatically.
