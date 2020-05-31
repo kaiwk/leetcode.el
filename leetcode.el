@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.14
+;; Version: 0.1.15
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -225,23 +225,23 @@ VALUE should be the referer."
     ("content-type" . "")))
 
 (defun leetcode--login ()
-  "Send login request and return a deferred object.
-When ACCOUNT or PASSWORD is empty string it will show a prompt."
+  "Steal LeetCode login session from local browser.
+It also cleans LeetCode cookies in `url-cookie-file'."
   (leetcode--loading-mode t)
-  (let ((my-cookies (executable-find "my_cookies")))
-    (set-process-filter
-     (start-process "my_cookies" nil "my_cookies")
-     (lambda (proc string)
-       (let* ((cookies-list (seq-filter
-                             (lambda (s) (not (string-empty-p s)))
-                             (split-string string "\n")))
-              (cookies-pairs (seq-map
-                              (lambda (s) (split-string s))
-                              cookies-list))
-              (leetcode-session (cadr (assoc "LEETCODE_SESSION" cookies-pairs)))
-              (leetcode-csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
-         (url-cookie-store "LEETCODE_SESSION" leetcode-session nil leetcode--domain "/" t)
-         (url-cookie-store "csrftoken" leetcode-csrftoken nil leetcode--domain "/" t)))))
+  (url-cookie-delete-cookies leetcode--domain)
+  (let* ((my-cookies (executable-find "my_cookies"))
+         (my-cookies-output (shell-command-to-string my-cookies))
+         (cookies-list (seq-filter
+                        (lambda (s) (not (string-empty-p s)))
+                        (split-string my-cookies-output "\n")))
+         (cookies-pairs (seq-map
+                         (lambda (s) (split-string s))
+                         cookies-list))
+         (leetcode-session (cadr (assoc "LEETCODE_SESSION" cookies-pairs)))
+         (leetcode-csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
+    (leetcode--debug "login: %s" my-cookies-output)
+    (url-cookie-store "LEETCODE_SESSION" leetcode-session nil leetcode--domain "/" t)
+    (url-cookie-store "csrftoken" leetcode-csrftoken nil leetcode--domain "/" t))
   (leetcode--loading-mode -1))
 
 (defun leetcode--login-p ()
@@ -358,7 +358,9 @@ Return a object with following attributes:
                         (list (cons "titleSlug" slug-title)))))
          (result (aio-await (aio-url-retrieve leetcode--api-graphql))))
     (if-let ((error-info (plist-get (car result) :error)))
-        (leetcode--warn "LeetCode fetch problem ERROR: %S" error-info)
+        (progn
+          (switch-to-buffer (cdr result))
+          (leetcode--warn "LeetCode fetch problem ERROR: %S" error-info))
       (with-current-buffer (cdr result)
         (goto-char url-http-end-of-headers)
         (alist-get 'question (alist-get 'data (json-read)))))))
@@ -444,6 +446,7 @@ Return a list of rows, each row is a vector:
 
 (defun leetcode--filter (rows)
   "Filter ROWS by `leetcode--filter-regex' and `leetcode--filter-tag'."
+  (leetcode--debug "filter rows: %s" rows)
   (seq-filter
    (lambda (row)
      (and
@@ -452,7 +455,7 @@ Return a list of rows, each row is a vector:
             (string-match-p leetcode--filter-regex title))
         t)
       (if leetcode--filter-tag
-          (let ((tags (split-string (aref row 5) ", ")))
+          (let* ((tags (split-string (aref row 6) ", ")))
             (member leetcode--filter-tag tags))
         t)))
    rows))
@@ -501,7 +504,9 @@ Return a list of rows, each row is a vector:
           (result (aio-await (aio-url-retrieve leetcode--api-all-problems))))
       (leetcode--loading-mode -1)
       (if-let ((error-info (plist-get (car result) :error)))
-          (leetcode--warn "LeetCode fetch user and problems failed: %S" error-info)
+          (progn
+            (switch-to-buffer (cdr result))
+            (leetcode--warn "LeetCode fetch user and problems failed: %S" error-info))
         (with-current-buffer (cdr result)
           (goto-char url-http-end-of-headers)
           (json-read))))))
@@ -599,7 +604,9 @@ LeetCode require slug-title as the request parameters."
                (typed_code  . ,(leetcode--buffer-content code-buf)))))
            (result (aio-await (aio-url-retrieve (format leetcode--api-try slug-title)))))
       (if-let ((error-info (plist-get (car result) :error)))
-          (leetcode--warn "LeetCode try failed: %S" error-info)
+          (progn
+            (switch-to-buffer (cdr result))
+            (leetcode--warn "LeetCode try failed: %S" error-info))
         (let ((data (with-current-buffer (cdr result)
                       (goto-char url-http-end-of-headers)
                       (json-read)))
@@ -663,6 +670,7 @@ nil."
     (if-let ((error-info (plist-get (car result) :error)))
         (progn
           (leetcode--loading-mode -1)
+          (switch-to-buffer (cdr result))
           (leetcode--warn "LeetCode check submission failed: %S" error-info))
       (with-current-buffer (cdr result)
         (let ((submission-res
@@ -795,6 +803,7 @@ following possible value:
       (if-let ((error-info (plist-get (car result) :error)))
           (progn
             (leetcode--loading-mode -1)
+            (switch-to-buffer (cdr result))
             (leetcode--warn "LeetCode check submit failed: %S" error-info))
         (let* ((resp
                 (with-current-buffer (cdr result)
