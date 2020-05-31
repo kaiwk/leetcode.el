@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.15
+;; Version: 0.1.16
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -228,7 +228,7 @@ VALUE should be the referer."
   "Steal LeetCode login session from local browser.
 It also cleans LeetCode cookies in `url-cookie-file'."
   (leetcode--loading-mode t)
-  (url-cookie-delete-cookies leetcode--domain)
+  (ignore-errors (url-cookie-delete-cookies leetcode--domain))
   (let* ((my-cookies (executable-find "my_cookies"))
          (my-cookies-output (shell-command-to-string my-cookies))
          (cookies-list (seq-filter
