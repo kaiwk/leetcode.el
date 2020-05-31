@@ -122,7 +122,10 @@ The elements of :problems has attributes:
 
 (defvar leetcode-retry-threshold 20 "`leetcode-try' or `leetcode-submit' retry times.")
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
-(defvar leetcode--filter-tag nil "Filter rows by leetcode tag.")
+(defvar leetcode--filter-tag nil "Filter rows by tag.")
+(defvar leetcode--filter-difficulty nil
+  "Filter rows by difficulty, it can be \"easy\", \"medium\" and \"hard\".")
+(defconst leetcode--all-difficulties '("easy" "medium" "hard"))
 
 (defconst leetcode--checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name             "*leetcode*")
@@ -446,8 +449,16 @@ Return a list of rows, each row is a vector:
              rows)))
     rows))
 
+(defun leetcode--row-tags (row)
+  "Get tags from ROW."
+  (aref row 6))
+
+(defun leetcode--row-difficulty (row)
+  "Get difficulty from ROW."
+  (aref row 5))
+
 (defun leetcode--filter (rows)
-  "Filter ROWS by `leetcode--filter-regex' and `leetcode--filter-tag'."
+  "Filter ROWS by `leetcode--filter-regex', `leetcode--filter-tag' and `leetcode--filter-difficulty'."
   (leetcode--debug "filter rows: %s" rows)
   (seq-filter
    (lambda (row)
@@ -457,8 +468,12 @@ Return a list of rows, each row is a vector:
             (string-match-p leetcode--filter-regex title))
         t)
       (if leetcode--filter-tag
-          (let* ((tags (split-string (aref row 6) ", ")))
+          (let ((tags (split-string (leetcode--row-tags row) ", ")))
             (member leetcode--filter-tag tags))
+        t)
+      (if leetcode--filter-difficulty
+          (let ((difficulty (leetcode--row-difficulty row)))
+            (string= difficulty leetcode--filter-difficulty))
         t)))
    rows))
 
@@ -467,19 +482,27 @@ Return a list of rows, each row is a vector:
   (interactive)
   (setq leetcode--filter-regex nil)
   (setq leetcode--filter-tag nil)
+  (setq leetcode--filter-difficulty nil)
   (leetcode-refresh))
 
 (defun leetcode-set-filter-regex (regex)
-  "Set `leetcode--filter-regex' as REGEX."
+  "Set `leetcode--filter-regex' as REGEX and refresh."
   (interactive "sSearch: ")
   (setq leetcode--filter-regex regex)
   (leetcode-refresh))
 
 (defun leetcode-set-filter-tag ()
-  "Set `leetcode--filter-tag'."
+  "Set `leetcode--filter-tag' from `leetcode--all-tags' and refresh."
   (interactive)
   (setq leetcode--filter-tag
         (completing-read "Tags: " leetcode--all-tags))
+  (leetcode-refresh))
+
+(defun leetcode-set-filter-difficulty ()
+  "Set `leetcode--filter-difficulty' from `leetcode--all-difficulties' and refresh."
+  (interactive)
+  (setq leetcode--filter-difficulty
+        (completing-read "Difficulty: " leetcode--all-difficulties))
   (leetcode-refresh))
 
 (aio-defun leetcode--fetch-all-tags ()
@@ -1024,6 +1047,7 @@ for current problem."
       (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
       (define-key map "t" #'leetcode-set-filter-tag)
+      (define-key map "d" #'leetcode-set-filter-difficulty)
       (define-key map "g" #'leetcode-refresh)
       (define-key map "G" #'leetcode-refresh-fetch)
       (define-key map "/" #'leetcode-reset-filter)

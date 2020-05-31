@@ -53,8 +53,9 @@ In leetcode problems list buffer:
 |--------|----------------------------------------|
 | n      | cursor move down                       |
 | p      | cursor move up                         |
-| s      | filter problem by regex                |
-| t      | filter problem by tag                  |
+| s      | filter problems by regex               |
+| t      | filter problems by tag                 |
+| d      | filter problems by difficulty          |
 | /      | clear filters                          |
 | g      | refresh without fetching from LeetCode |
 | G      | refresh all data                       |
