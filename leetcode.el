@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.17
+;; Version: 0.1.18
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -127,15 +127,21 @@ The elements of :problems has attributes:
   "Filter rows by difficulty, it can be \"easy\", \"medium\" and \"hard\".")
 (defconst leetcode--all-difficulties '("easy" "medium" "hard"))
 
+(defconst leetcode--paid "•" "Paid mark.")
 (defconst leetcode--checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name             "*leetcode*")
 (defconst leetcode--description-buffer-name "*leetcode-description*")
 (defconst leetcode--testcase-buffer-name    "*leetcode-testcase*")
 (defconst leetcode--result-buffer-name      "*leetcode-result*")
 
+(defface leetcode-paid-face
+  '((t (:foreground "gold")))
+  "Face for `leetcode--paid'."
+  :group 'leetcode)
+
 (defface leetcode-checkmark-face
   '((t (:foreground "#5CB85C")))
-  "Face for `leetcode--checkmark'"
+  "Face for `leetcode--checkmark'."
   :group 'leetcode)
 
 (defface leetcode-easy-face
@@ -273,6 +279,7 @@ USER-AND-PROBLEMS is an alist comes from
                 :easy     .ac_easy
                 :medium   .ac_medium
                 :hard     .ac_hard))
+    (leetcode--debug "problem status pairs: %s" .stat_status_pairs)
     ;; problem list
     (setq leetcode--all-problems
           (list
@@ -301,6 +308,7 @@ USER-AND-PROBLEMS is an alist comes from
 
 (defun leetcode--set-tags (all-tags)
   "Set `leetcode--all-tags' and `leetcode--all-problems' with ALL-TAGS."
+  (leetcode--debug "all tags: %s" all-tags)
   (let-alist all-tags
     ;; set problems tags
     (dolist (problem (plist-get leetcode--all-problems :problems))
@@ -422,9 +430,15 @@ Return a list of rows, each row is a vector:
               ;; position
               (number-to-string (plist-get p :pos))
               ;; title
-              (plist-get p :title)
-              ;; paid-only
-              (if (eq (plist-get p :paid-only) t) "Y" "N")
+              (concat
+               (plist-get p :title)
+               " "
+               (if (eq (plist-get p :paid-only) t)
+                   (prog1 leetcode--paid
+                     (put-text-property
+                      0 (length leetcode--paid)
+                      'font-lock-face 'leetcode-paid-face leetcode--paid))
+                 " "))
               ;; acceptance
               (plist-get p :acceptance)
               ;; difficulty
@@ -451,11 +465,11 @@ Return a list of rows, each row is a vector:
 
 (defun leetcode--row-tags (row)
   "Get tags from ROW."
-  (aref row 6))
+  (aref row 5))
 
 (defun leetcode--row-difficulty (row)
   "Get difficulty from ROW."
-  (aref row 5))
+  (aref row 4))
 
 (defun leetcode--filter (rows)
   "Filter ROWS by `leetcode--filter-regex', `leetcode--filter-tag' and `leetcode--filter-difficulty'."
@@ -539,7 +553,7 @@ Return a list of rows, each row is a vector:
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."
   (interactive)
-  (let* ((header-names '(" " "#" "Problem" "Paid-Only" "Acceptance" "Difficulty" "Tags"))
+  (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty" "Tags"))
          (rows (leetcode--filter (leetcode--problems-rows)))
          (headers (leetcode--make-tabulated-headers header-names rows)))
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
@@ -858,11 +872,12 @@ Get current entry by using `tabulated-list-get-entry' and use
   (interactive)
   (let* ((entry (tabulated-list-get-entry))
          (pos (aref entry 1))
-         (title (aref entry 2))
+         (title (substring-no-properties (aref entry 2) nil -2)) ;strip paid mark
          (difficulty (aref entry 4))
          (problem (aio-await (leetcode--fetch-problem title)))
          (buf-name leetcode--description-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
+    (leetcode--debug "select title: %s" title)
     (let-alist problem
       (when (get-buffer buf-name)
         (kill-buffer buf-name))
