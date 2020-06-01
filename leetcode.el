@@ -512,6 +512,13 @@ Return a list of rows, each row is a vector:
         (completing-read "Tags: " leetcode--all-tags))
   (leetcode-refresh))
 
+(defun leetcode-set-prefer-language ()
+  "Set `leetcode-prefer-language' from `leetcode--lang-suffixes' and refresh."
+  (interactive)
+  (setq leetcode-prefer-language
+        (completing-read "Language: " leetcode--lang-suffixes))
+  (leetcode-refresh))
+
 (defun leetcode-set-filter-difficulty ()
   "Set `leetcode--filter-difficulty' from `leetcode--all-difficulties' and refresh."
   (interactive)
@@ -1061,6 +1068,7 @@ for current problem."
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
+      (define-key map "l" #'leetcode-set-prefer-language)
       (define-key map "t" #'leetcode-set-filter-tag)
       (define-key map "d" #'leetcode-set-filter-difficulty)
       (define-key map "g" #'leetcode-refresh)

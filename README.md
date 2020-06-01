@@ -13,6 +13,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 |--------|----------------------------------------|
 | n      | cursor move down                       |
 | p      | cursor move up                         |
+| l      | change prefer language                 |
 | s      | filter problems by regex               |
 | t      | filter problems by tag                 |
 | d      | filter problems by difficulty          |
