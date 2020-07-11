@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.18
+;; Version: 0.1.19
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -40,6 +40,7 @@
 (require 'seq)
 (require 'subr-x)
 (require 'mm-url)
+(require 'cl-lib)
 
 (require 'dash)
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
@@ -394,16 +395,16 @@ under that column and the HEADER-NAMES. HEADER-NAMES are a list
 of header name, ROWS are a list of vector, each vector is one
 row."
   (let ((widths
-         (-reduce-from
+         (seq-reduce
           (lambda (acc row)
-            (-zip-with
+            (cl-mapcar
              (lambda (a col) (max a (length col)))
              acc
              (append row '())))
-          (seq-map #'length header-names)
-          rows)))
+          rows
+          (seq-map #'length header-names))))
     (vconcat
-     (-zip-with
+     (cl-mapcar
       (lambda (col size) (list col size nil))
       header-names widths))))
 
@@ -560,9 +561,9 @@ Return a list of rows, each row is a vector:
       (leetcode--problems-mode)
       (setq tabulated-list-format headers)
       (setq tabulated-list-entries
-            (-zip-with
+            (cl-mapcar
              (lambda (i x) (list i x))
-             (-iterate '1+ 0 (length rows))
+             (number-sequence 0 (1- (length rows)))
              rows))
       (tabulated-list-init-header)
       (tabulated-list-print t)
