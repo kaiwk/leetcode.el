@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.19
+;; Version: 0.1.20
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -1074,7 +1074,7 @@ for current problem."
   tabulated-list-mode "LC Problems"
   "Major mode for browsing a list of problems."
   (setq tabulated-list-padding 2)
-  (add-hook 'tabulated-list-revert-hook #'leetcode-problems-refresh nil t)
+  (add-hook 'tabulated-list-revert-hook #'leetcode-refresh nil t)
   :group 'leetcode)
 
 (add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
