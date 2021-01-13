@@ -40,6 +40,7 @@
 (require 'seq)
 (require 'subr-x)
 (require 'mm-url)
+(require 'cl-lib)
 
 (require 'dash)
 (require 'graphql)                      ; Some requests of LeetCode use GraphQL
@@ -394,16 +395,16 @@ under that column and the HEADER-NAMES. HEADER-NAMES are a list
 of header name, ROWS are a list of vector, each vector is one
 row."
   (let ((widths
-         (-reduce-from
+         (seq-reduce
           (lambda (acc row)
-            (-zip-with
+            (cl-mapcar
              (lambda (a col) (max a (length col)))
              acc
              (append row '())))
-          (seq-map #'length header-names)
-          rows)))
+          rows
+          (seq-map #'length header-names))))
     (vconcat
-     (-zip-with
+     (cl-mapcar
       (lambda (col size) (list col size nil))
       header-names widths))))
 
@@ -431,8 +432,8 @@ Return a list of rows, each row is a vector:
               (number-to-string (plist-get p :pos))
               ;; title
               (concat
-               (plist-get p :title)
-               " "
+	       (plist-get p :title)
+	       " "
                (if (eq (plist-get p :paid-only) t)
                    (prog1 leetcode--paid
                      (put-text-property
@@ -567,9 +568,9 @@ Return a list of rows, each row is a vector:
       (leetcode--problems-mode)
       (setq tabulated-list-format headers)
       (setq tabulated-list-entries
-            (-zip-with
+            (cl-mapcar
              (lambda (i x) (list i x))
-             (-iterate '1+ 0 (length rows))
+             (number-sequence 0 (1- (length rows)))
              rows))
       (tabulated-list-init-header)
       (tabulated-list-print t)
@@ -1081,7 +1082,7 @@ for current problem."
   tabulated-list-mode "LC Problems"
   "Major mode for browsing a list of problems."
   (setq tabulated-list-padding 2)
-  (add-hook 'tabulated-list-revert-hook #'leetcode-problems-refresh nil t)
+  (add-hook 'tabulated-list-revert-hook #'leetcode-refresh nil t)
   :group 'leetcode)
 
 (add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
