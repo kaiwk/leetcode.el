@@ -14,6 +14,10 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | n      | cursor move down                       |
 | p      | cursor move up                         |
 | l      | change prefer language                 |
+| i      | show current problem                   |
+| I      | show problem by id                     |
+| b      | show current problem in browser        |
+| B      | show problem by id in browser          |
 | s      | filter problems by regex               |
 | t      | filter problems by tag                 |
 | d      | filter problems by difficulty          |
@@ -21,6 +25,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | g      | refresh without fetching from LeetCode |
 | G      | refresh all data                       |
 | RET    | show current problem description       |
+| TAB    | view current problem description       |
 
 2. Press `<RET>`, show problem description, move cursor to "solve it", press
    `<RET>` again, start coding!
