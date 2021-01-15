@@ -1116,6 +1116,11 @@ for current problem."
     (prog1 map
       (suppress-keymap map)
       (define-key map (kbd "RET") #'leetcode-show-current-problem)
+      (define-key map (kbd "TAB") #'leetcode-view-current-problem)
+      (define-key map "i" #'leetcode-show-current-problem)
+      (define-key map "I" #'leetcode-show-problem)
+      (define-key map "b" #'leetcode-show-current-problem-in-browser)
+      (define-key map "B" #'leetcode-show-problem-in-browser)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
