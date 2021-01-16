@@ -887,7 +887,8 @@ following possible value:
 (aio-defun leetcode-show-problem (problem-id)
   "Show the description of problem with id PROBLEM-ID.
 Get problem by id and use `shr-render-buffer' to render problem
-description."
+description.  This action will show the description in other
+window and jump to it."
   (interactive (list (read-number "Show in place by problem id: "
                                   (leetcode--get-current-problem-id))))
   (let* ((problem-info (leetcode--get-problem-by-id problem-id))
@@ -933,13 +934,17 @@ description."
         (switch-to-buffer (current-buffer))))))
 
 (defun leetcode-show-current-problem ()
-  "Show the description of the current problem.
-Call `leetcode-show-problem' on the current problem id."
+  "Show current problem's description.
+Call `leetcode-show-problem' on the current problem id.  This
+action will show the description in other window and jump to
+it."
   (interactive)
   (leetcode-show-problem (leetcode--get-current-problem-id)))
 
 (aio-defun leetcode-view-current-problem ()
-  "View current problem in other window."
+  "View current problem in other window.
+Similar with `leetcode-show-current-problem', but instead of jumping to
+the description window, this action will stay in `LC problems' window."
   (interactive)
   (aio-await (leetcode-show-problem (leetcode--get-current-problem-id)))
   (other-window -1))
