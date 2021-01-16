@@ -951,7 +951,7 @@ Similar with `leetcode-show-current-problem', but instead of jumping to
 the description window, this action will stay in `LC problems' window."
   (interactive)
   (aio-await (leetcode-show-problem (leetcode--get-current-problem-id)))
-  (other-window -1))
+  (leetcode--jump-to-window-by-buffer-name leetcode--buffer-name))
 
 (defun leetcode-show-problem-in-browser (problem-id)
   "Open the problem with id PROBLEM-ID in browser."
@@ -984,6 +984,10 @@ Call `leetcode-show-problem-in-browser' on the current problem id."
 Call `leetcode-solve-problem' on the current problem id."
   (interactive)
   (leetcode-solve-problem (leetcode--get-current-problem-id)))
+
+(defun leetcode--jump-to-window-by-buffer-name (buffer-name)
+  "Jump to window by BUFFER-NAME."
+  (select-window (get-buffer-window buffer-name)))
 
 (defun leetcode--kill-buff-and-delete-window (buf)
   "Kill BUF and delete its window."
