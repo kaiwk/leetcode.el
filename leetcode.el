@@ -963,6 +963,20 @@ the description window, this action will stay in `LC problems' window."
 Call `leetcode-show-problem-in-browser' on the current problem id."
   (leetcode-show-problem-in-browser (leetcode--get-current-problem-id)))
 
+(aio-defun leetcode-solve-problem (problem-id)
+  "Start coding the problem with id PROBLEM-ID."
+  (interactive (list (read-number "Solve the problem with id: "
+                                  (leetcode--get-current-problem-id))))
+  (aio-await (leetcode-show-problem problem-id))
+  (let* ((problem-info (leetcode--get-problem-by-id problem-id))
+         (title (plist-get problem-info :title))
+         (problem (aio-await (leetcode--fetch-problem title))))
+    (let-alist problem
+      (leetcode--start-coding
+       title
+       (append .codeSnippets nil)
+       .sampleTestCase))))
+
 (defun leetcode--kill-buff-and-delete-window (buf)
   "Kill BUF and delete its window."
   (delete-windows-on buf t)
