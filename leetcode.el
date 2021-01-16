@@ -408,8 +408,8 @@ row."
       (lambda (col size) (list col size nil))
       header-names widths))))
 
-(defun leetcode--stringfy-difficulty (difficulty)
-  "Stringfy DIFFICULTY level (number) to 'easy', 'medium' or 'hard'."
+(defun leetcode--stringify-difficulty (difficulty)
+  "Stringify DIFFICULTY level (number) to 'easy', 'medium' or 'hard'."
   (let ((easy-tag "easy")
         (medium-tag "medium")
         (hard-tag "hard"))
@@ -465,7 +465,7 @@ Return a list of rows, each row is a vector:
               ;; acceptance
               (plist-get p :acceptance)
               ;; difficulty
-              (leetcode--stringfy-difficulty (plist-get p :difficulty))
+              (leetcode--stringify-difficulty (plist-get p :difficulty))
               ;; tags
               (string-join (plist-get p :tags) ", "))
              rows)))
@@ -683,14 +683,14 @@ LeetCode require slug-title as the request parameters."
                       (cond
                        ((eq .status_code 10)
                         (insert "Output:\n")
-			(dotimes (i (length .code_answer))
-			  (insert (aref .code_answer i))
-			  (insert "\n"))
+                        (dotimes (i (length .code_answer))
+                          (insert (aref .code_answer i))
+                          (insert "\n"))
                         (insert "\n")
                         (insert "Expected:\n")
-			(dotimes (i (length .expected_code_answer))
-			  (insert (aref .expected_code_answer i))
-			  (insert "\n"))
+                        (dotimes (i (length .expected_code_answer))
+                          (insert (aref .expected_code_answer i))
+                          (insert "\n"))
                         (insert "\n"))
                        ((eq .status_code 14)
                         (insert .status_msg))
@@ -893,12 +893,12 @@ description."
   (let* ((problem-info (leetcode--get-problem-by-id problem-id))
          (title (plist-get problem-info :title))
          (difficulty-level (plist-get problem-info :difficulty))
-         (difficulty (leetcode--stringfy-difficulty difficulty-level))
+         (difficulty (leetcode--stringify-difficulty difficulty-level))
          (problem (aio-await (leetcode--fetch-problem title)))
          (buf-name leetcode--description-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
     (leetcode--debug "select title: %s" title)
-     (let-alist problem
+    (let-alist problem
       (when (get-buffer buf-name)
         (kill-buffer buf-name))
       (with-temp-buffer
