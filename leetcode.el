@@ -941,8 +941,8 @@ window and jump to it."
 (defun leetcode-show-current-problem ()
   "Show current problem's description.
 Call `leetcode-show-problem' on the current problem id.  This
-action will show the description in other window and jump to
-it."
+action will show the description in other window and jump to it."
+  (interactive)
   (leetcode-show-problem (leetcode--get-current-problem-id)))
 
 (aio-defun leetcode-view-current-problem ()
@@ -966,6 +966,7 @@ the description window, this action will stay in `LC problems' window."
 (defun leetcode-show-current-problem-in-browser ()
   "Open the current problem in browser.
 Call `leetcode-show-problem-in-browser' on the current problem id."
+  (interactive)
   (leetcode-show-problem-in-browser (leetcode--get-current-problem-id)))
 
 (aio-defun leetcode-solve-problem (problem-id)
@@ -981,6 +982,7 @@ Call `leetcode-show-problem-in-browser' on the current problem id."
 (defun leetcode-solve-current-problem ()
   "Start coding the current problem.
 Call `leetcode-solve-problem' on the current problem id."
+  (interactive)
   (leetcode-solve-problem (leetcode--get-current-problem-id)))
 
 (defun leetcode--kill-buff-and-delete-window (buf)
@@ -1149,6 +1151,8 @@ for current problem."
       (define-key map "I" #'leetcode-show-problem)
       (define-key map "b" #'leetcode-show-current-problem-in-browser)
       (define-key map "B" #'leetcode-show-problem-in-browser)
+      (define-key map "c" #'leetcode-solve-current-problem)
+      (define-key map "C" #'leetcode-solve-problem)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
