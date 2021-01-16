@@ -938,7 +938,6 @@ window and jump to it."
 Call `leetcode-show-problem' on the current problem id.  This
 action will show the description in other window and jump to
 it."
-  (interactive)
   (leetcode-show-problem (leetcode--get-current-problem-id)))
 
 (aio-defun leetcode-view-current-problem ()
@@ -962,7 +961,6 @@ the description window, this action will stay in `LC problems' window."
 (defun leetcode-show-current-problem-in-browser ()
   "Open the current problem in browser.
 Call `leetcode-show-problem-in-browser' on the current problem id."
-  (interactive)
   (leetcode-show-problem-in-browser (leetcode--get-current-problem-id)))
 
 (defun leetcode--kill-buff-and-delete-window (buf)
