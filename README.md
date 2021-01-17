@@ -14,10 +14,14 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | n      | cursor move down                       |
 | p      | cursor move up                         |
 | l      | change prefer language                 |
-| i      | show current problem                   |
-| I      | show problem by id                     |
+| o      | show current problem                   |
+| O      | show problem by id                     |
+| v      | view current problem                   |
+| V      | view problem by id                     |
 | b      | show current problem in browser        |
 | B      | show problem by id in browser          |
+| c      | solve current problem                  |
+| C      | solve problem by id                    |
 | s      | filter problems by regex               |
 | t      | filter problems by tag                 |
 | d      | filter problems by difficulty          |
