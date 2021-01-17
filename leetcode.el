@@ -931,7 +931,7 @@ will show the description in other window and jump to it."
 Get problem by id and use `shr-render-buffer' to render problem
 description.  This action will show the description in other
 window and jump to it."
-  (interactive (list (read-number "Show in place by problem id: "
+  (interactive (list (read-number "Show problem by problem id: "
                                   (leetcode--get-current-problem-id))))
   (let* ((problem-info (leetcode--get-problem-by-id problem-id))
          (title (plist-get problem-info :title))
@@ -945,13 +945,21 @@ action will show the description in other window and jump to it."
   (interactive)
   (leetcode-show-problem (leetcode--get-current-problem-id)))
 
-(aio-defun leetcode-view-current-problem ()
-  "View current problem in other window.
-Similar with `leetcode-show-current-problem', but instead of jumping to
-the description window, this action will stay in `LC problems' window."
-  (interactive)
-  (aio-await (leetcode-show-problem (leetcode--get-current-problem-id)))
+(aio-defun leetcode-view-problem (problem-id)
+  "View problem by PROBLEM-ID while staying in `LC Problems' window.
+Similar with `leetcode-show-problem', but instead of jumping to the
+description window, this action will jump back in `LC Problems'."
+  (interactive (list (read-number "View problem by problem id: "
+                                  (leetcode--get-current-problem-id))))
+  (aio-await (leetcode-show-problem problem-id))
   (leetcode--jump-to-window-by-buffer-name leetcode--buffer-name))
+
+(defun leetcode-view-current-problem ()
+  "View current problem while staying in `LC Problems' window.
+Similar with `leetcode-show-current-problem', but instead of jumping to
+the description window, this action will jump back in `LC Problems'."
+  (interactive)
+  (leetcode-view-problem (leetcode--get-current-problem-id)))
 
 (defun leetcode-show-problem-in-browser (problem-id)
   "Open the problem with id PROBLEM-ID in browser."
@@ -1153,6 +1161,8 @@ for current problem."
       (define-key map (kbd "TAB") #'leetcode-view-current-problem)
       (define-key map "i" #'leetcode-show-current-problem)
       (define-key map "I" #'leetcode-show-problem)
+      (define-key map "v" #'leetcode-view-current-problem)
+      (define-key map "V" #'leetcode-view-problem)
       (define-key map "b" #'leetcode-show-current-problem-in-browser)
       (define-key map "B" #'leetcode-show-problem-in-browser)
       (define-key map "c" #'leetcode-solve-current-problem)
