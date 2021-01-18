@@ -108,7 +108,7 @@ The object with following attributes:
 The elements of :problems has attributes:
 :status     String
 :id         Number
-:submit-id  Number
+:backend-id  Number
 :title      String
 :acceptance String
 :difficulty Number {1,2,3}
@@ -315,7 +315,7 @@ USER-AND-PROBLEMS is an alist comes from
                   (list
                    :status .status
                    :id .stat.frontend_question_id
-                   :submit-id .stat.question_id
+                   :backend-id .stat.question_id
                    :title .stat.question__title
                    :acceptance (format
                                 "%.1f%%"
@@ -334,7 +334,7 @@ USER-AND-PROBLEMS is an alist comes from
     (dovec (problem (plist-get leetcode--all-problems :problems))
       (dolist (topic (to-list .topics))
         (let-alist topic
-          (when (member (plist-get problem :submit-id) (to-list .questions))
+          (when (member (plist-get problem :backend-id) (to-list .questions))
             (let ((cur-tags (plist-get problem :tags)))
               (push .slug cur-tags)
               (plist-put problem :tags cur-tags))))))
@@ -651,7 +651,7 @@ LeetCode require slug-title as the request parameters."
                                      (leetcode--slugify-title
                                       (plist-get p :title))))
                             (plist-get leetcode--all-problems :problems)))
-         (problem-id (plist-get problem :submit-id)))
+         (problem-id (plist-get problem :backend-id)))
     (leetcode--debug "leetcode try slug-title: %s, problem-id: %s" slug-title problem-id)
     (let* ((url-request-method "POST")
            (url-request-extra-headers
@@ -855,7 +855,7 @@ following possible value:
                                                    (leetcode--slugify-title
                                                     (plist-get p :title))))
                                           (plist-get leetcode--all-problems :problems))
-                                :submit-id)))
+                                :backend-id)))
     (leetcode--debug "leetcode submit slug-title: %s, problem-id: %s" slug-title problem-id)
     (let* ((url-request-method "POST")
            (url-request-extra-headers
