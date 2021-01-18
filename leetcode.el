@@ -103,12 +103,12 @@ The object with following attributes:
 The object with following attributes:
 :num      Number
 :tag      String
-:problems List
+:problems Vector
 
 The elements of :problems has attributes:
 :status     String
 :id         Number
-:pos        Number
+:submit-id  Number
 :title      String
 :acceptance String
 :difficulty Number {1,2,3}
@@ -187,6 +187,26 @@ The elements of :problems has attributes:
 (defun to-list (vec)
   "Convert VEC to list."
   (append vec '()))
+
+(defmacro dovec (spec &rest body)
+  "Loop over a vector.
+EVALUATE BODY with VAR bound to each element in VEC, in turn.
+SPEC is just like (VAR VEC [RESULT]).  Then evaluate RESULT to
+get the return value (nil if RESULT is omitted).
+
+\(fn (VAR VEC [RESULT]) BODY...)"
+  (declare (indent 1))
+  (let ((start 0)
+        (counter (gensym))
+        (end (gensym)))
+    `(let ((,counter ,start)
+           (,(car spec) nil)
+           (,end (length ,(cadr spec))))
+       (while (< ,counter ,end)
+         (setq ,(car spec) (aref ,(cadr spec) ,counter))
+         ,@body
+         (setq ,counter (1+ ,counter)))
+       ,@(cddr spec))))
 
 (defun leetcode--referer (value)
   "It will return an alist as the HTTP Referer Header.
@@ -287,15 +307,15 @@ USER-AND-PROBLEMS is an alist comes from
            :num .num_total
            :tag "all"
            :problems
-           (let ((len .num_total)
-                 problems)
-             (dolist (i (number-sequence 0 (1- len)))
+           (let* ((len .num_total)
+                  (problems (make-vector len nil)))
+             (dotimes (i len)
                (let-alist (aref .stat_status_pairs i)
-                 (push
+                 (aset problems (1- .stat.frontend_question_id)
                   (list
                    :status .status
-                   :id .stat.question_id
-                   :pos (- len i)
+                   :id .stat.frontend_question_id
+                   :submit-id .stat.question_id
                    :title .stat.question__title
                    :acceptance (format
                                 "%.1f%%"
@@ -303,8 +323,7 @@ USER-AND-PROBLEMS is an alist comes from
                                    (/ (float .stat.total_acs)
                                       .stat.total_submitted)))
                    :difficulty .difficulty.level
-                   :paid-only (eq .paid_only t))
-                  problems)))
+                   :paid-only (eq .paid_only t)))))
              problems)))))
 
 (defun leetcode--set-tags (all-tags)
@@ -312,10 +331,10 @@ USER-AND-PROBLEMS is an alist comes from
   (leetcode--debug "all tags: %s" all-tags)
   (let-alist all-tags
     ;; set problems tags
-    (dolist (problem (plist-get leetcode--all-problems :problems))
+    (dovec (problem (plist-get leetcode--all-problems :problems))
       (dolist (topic (to-list .topics))
         (let-alist topic
-          (when (member (plist-get problem :id) (to-list .questions))
+          (when (member (plist-get problem :submit-id) (to-list .questions))
             (let ((cur-tags (plist-get problem :tags)))
               (push .slug cur-tags)
               (plist-put problem :tags cur-tags))))))
@@ -412,12 +431,12 @@ row."
   "Generate tabulated list rows from `leetcode--all-problems'.
 Return a list of rows, each row is a vector:
 \([<checkmark> <position> <title> <acceptance> <difficulty>] ...)"
-  (let ((problems (reverse (plist-get leetcode--all-problems :problems)))
+  (let ((problems (plist-get leetcode--all-problems :problems))
         (easy-tag "easy")
         (medium-tag "medium")
         (hard-tag "hard")
         rows)
-    (dolist (p problems)
+    (dovec (p problems)
       (setq rows
             (cons
              (vector
@@ -428,8 +447,8 @@ Return a list of rows, each row is a vector:
                      0 (length leetcode--checkmark)
                      'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
                 " ")
-              ;; position
-              (number-to-string (plist-get p :pos))
+              ;; id
+              (number-to-string (plist-get p :id))
               ;; title
               (concat
 	       (plist-get p :title)
@@ -462,7 +481,7 @@ Return a list of rows, each row is a vector:
               ;; tags
               (string-join (plist-get p :tags) ", "))
              rows)))
-    rows))
+    (reverse rows)))
 
 (defun leetcode--row-tags (row)
   "Get tags from ROW."
@@ -632,7 +651,7 @@ LeetCode require slug-title as the request parameters."
                                      (leetcode--slugify-title
                                       (plist-get p :title))))
                             (plist-get leetcode--all-problems :problems)))
-         (problem-id (plist-get problem :id)))
+         (problem-id (plist-get problem :submit-id)))
     (leetcode--debug "leetcode try slug-title: %s, problem-id: %s" slug-title problem-id)
     (let* ((url-request-method "POST")
            (url-request-extra-headers
@@ -836,7 +855,7 @@ following possible value:
                                                    (leetcode--slugify-title
                                                     (plist-get p :title))))
                                           (plist-get leetcode--all-problems :problems))
-                                :id)))
+                                :submit-id)))
     (leetcode--debug "leetcode submit slug-title: %s, problem-id: %s" slug-title problem-id)
     (let* ((url-request-method "POST")
            (url-request-extra-headers
@@ -1026,7 +1045,6 @@ for current problem."
   (leetcode--solving-layout)
   (leetcode--set-lang snippets)
   (let* ((slug-title  (leetcode--slugify-title title))
-         (problem-id (leetcode--get-problem-id slug-title))
          (buf-name (leetcode--get-code-buffer-name title))
          (code-buf (get-buffer buf-name))
          (suffix (assoc-default
