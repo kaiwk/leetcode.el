@@ -108,7 +108,7 @@ The object with following attributes:
 The elements of :problems has attributes:
 :status     String
 :id         Number
-:backend-id  Number
+:backend-id Number
 :title      String
 :acceptance String
 :difficulty Number {1,2,3}
@@ -410,7 +410,7 @@ Return a object with following attributes:
 (defun leetcode--make-tabulated-headers (header-names rows)
   "Calculate headers width.
 Column width calculated by picking the max width of every cell
-under that column and the HEADER-NAMES. HEADER-NAMES are a list
+under that column and the HEADER-NAMES.  HEADER-NAMES are a list
 of header name, ROWS are a list of vector, each vector is one
 row."
   (let ((widths
@@ -780,7 +780,7 @@ nil."
 
 (defun leetcode--display-result (buffer &optional alist)
   "Display function for LeetCode result.
-BUFFER is the one to show LeetCode result. ALIST is a combined
+BUFFER is the one to show LeetCode result.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-next-sibling
@@ -793,7 +793,7 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--display-testcase (buffer &optional alist)
   "Display function for LeetCode testcase.
-BUFFER is the one to show LeetCode testcase. ALIST is a combined
+BUFFER is the one to show LeetCode testcase.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-top-child
@@ -805,7 +805,7 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--display-code (buffer &optional alist)
   "Display function for LeetCode code.
-BUFFER is the one to show LeetCode code. ALIST is a combined
+BUFFER is the one to show LeetCode code.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-left-child (frame-root-window))))
     (set-window-buffer window buffer)
@@ -813,13 +813,13 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--show-submission-result (submission-detail)
   "Show error info in `leetcode--result-buffer-name' based on status code.
-Error info comes from SUBMISSION-DETAIL. STATUS_CODE has
+Error info comes from SUBMISSION-DETAIL.  STATUS_CODE has
 following possible value:
 - 10: Accepted
 - 11: Wrong Anwser
 - 14: Time Limit Exceeded
-- 15: Runtime Error. full_runtime_error
-- 20: Compile Error. full_compile_error"
+- 15: Runtime Error.  full_runtime_error
+- 20: Compile Error.  full_compile_error"
   (let-alist submission-detail
     (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
       (erase-buffer)
