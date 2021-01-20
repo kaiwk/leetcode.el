@@ -9,19 +9,11 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 1. Execute `leetcode` command, and in problem list buffer:
 
-| keymap | command                                |
+| Keymap | Description                            |
 |--------|----------------------------------------|
 | n      | cursor move down                       |
 | p      | cursor move up                         |
 | l      | change prefer language                 |
-| o      | show current problem                   |
-| O      | show problem by id                     |
-| v      | view current problem                   |
-| V      | view problem by id                     |
-| b      | show current problem in browser        |
-| B      | show problem by id in browser          |
-| c      | solve current problem                  |
-| C      | solve problem by id                    |
 | s      | filter problems by regex               |
 | t      | filter problems by tag                 |
 | d      | filter problems by difficulty          |
@@ -31,6 +23,8 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | RET    | show current problem description       |
 | TAB    | view current problem description       |
 
+More advanced navigation hotkeys can be found [here](#advanced-navigation).
+
 2. Press `<RET>`, show problem description, move cursor to "solve it", press
    `<RET>` again, start coding!
 
@@ -38,6 +32,21 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
    or execute `leetcode-submit`.
 
 ![leetcode-submit](images/leetcode-submit.png)
+
+## Advanced Navigation
+
+Here are some advanced navigation hotkeys that may be useful in problem list buffer:
+
+| Keymap | Command                                    | Description                         |
+|--------|--------------------------------------------|-------------------------------------|
+| o      | `leetcode-show-problem`                    | show/open the current problem       |
+| O      | `leetcode-show-current-problem`            | show/open a problem by id           |
+| v      | `leetcode-view-problem`                    | view the current problem            |
+| V      | `leetcode-view-current-problem`            | view a problem by id                |
+| b      | `leetcode-show-problem-in-browser`         | show the current problem in browser |
+| B      | `leetcode-show-current-problem-in-browser` | show a problem by id in browser     |
+| c      | `leetcode-solve-problem`                   | start coding the current problem    |
+| C      | `leetcode-solve-current-problem`           | start coding a problem by id        |
 
 # Installation
 
