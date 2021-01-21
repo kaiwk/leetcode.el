@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.20
+;; Version: 0.1.21
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -312,18 +312,18 @@ USER-AND-PROBLEMS is an alist comes from
              (dotimes (i len)
                (let-alist (aref .stat_status_pairs i)
                  (aset problems (1- .stat.frontend_question_id)
-                  (list
-                   :status .status
-                   :id .stat.frontend_question_id
-                   :backend-id .stat.question_id
-                   :title .stat.question__title
-                   :acceptance (format
-                                "%.1f%%"
-                                (* 100
-                                   (/ (float .stat.total_acs)
-                                      .stat.total_submitted)))
-                   :difficulty .difficulty.level
-                   :paid-only (eq .paid_only t)))))
+                       (list
+                        :status .status
+                        :id .stat.frontend_question_id
+                        :backend-id .stat.question_id
+                        :title .stat.question__title
+                        :acceptance (format
+                                     "%.1f%%"
+                                     (* 100
+                                        (/ (float .stat.total_acs)
+                                           .stat.total_submitted)))
+                        :difficulty .difficulty.level
+                        :paid-only (eq .paid_only t)))))
              problems)))))
 
 (defun leetcode--set-tags (all-tags)
@@ -473,8 +473,8 @@ Return a list of rows, each row is a vector:
               (number-to-string (plist-get p :id))
               ;; title
               (concat
-	       (plist-get p :title)
-	       " "
+	           (plist-get p :title)
+	           " "
                (if (eq (plist-get p :paid-only) t)
                    (prog1 leetcode--paid
                      (put-text-property
