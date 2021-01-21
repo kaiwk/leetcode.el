@@ -108,7 +108,7 @@ The object with following attributes:
 The elements of :problems has attributes:
 :status     String
 :id         Number
-:backend-id  Number
+:backend-id Number
 :title      String
 :acceptance String
 :difficulty Number {1,2,3}
@@ -410,7 +410,7 @@ Return a object with following attributes:
 (defun leetcode--make-tabulated-headers (header-names rows)
   "Calculate headers width.
 Column width calculated by picking the max width of every cell
-under that column and the HEADER-NAMES. HEADER-NAMES are a list
+under that column and the HEADER-NAMES.  HEADER-NAMES are a list
 of header name, ROWS are a list of vector, each vector is one
 row."
   (let ((widths
@@ -426,6 +426,28 @@ row."
      (cl-mapcar
       (lambda (col size) (list col size nil))
       header-names widths))))
+
+(defun leetcode--stringify-difficulty (difficulty)
+  "Stringify DIFFICULTY level (number) to 'easy', 'medium' or 'hard'."
+  (let ((easy-tag "easy")
+        (medium-tag "medium")
+        (hard-tag "hard"))
+    (cond
+     ((eq 1 difficulty)
+      (prog1 easy-tag
+        (put-text-property
+         0 (length easy-tag)
+         'font-lock-face 'leetcode-easy-face easy-tag)))
+     ((eq 2 difficulty)
+      (prog1 medium-tag
+        (put-text-property
+         0 (length medium-tag)
+         'font-lock-face 'leetcode-medium-face medium-tag)))
+     ((eq 3 difficulty)
+      (prog1 hard-tag
+        (put-text-property
+         0 (length hard-tag)
+         'font-lock-face 'leetcode-hard-face hard-tag))))))
 
 (defun leetcode--problems-rows ()
   "Generate tabulated list rows from `leetcode--all-problems'.
@@ -462,22 +484,7 @@ Return a list of rows, each row is a vector:
               ;; acceptance
               (plist-get p :acceptance)
               ;; difficulty
-              (cond
-               ((eq 1 (plist-get p :difficulty))
-                (prog1 easy-tag
-                  (put-text-property
-                   0 (length easy-tag)
-                   'font-lock-face 'leetcode-easy-face easy-tag)))
-               ((eq 2 (plist-get p :difficulty))
-                (prog1 medium-tag
-                  (put-text-property
-                   0 (length medium-tag)
-                   'font-lock-face 'leetcode-medium-face medium-tag)))
-               ((eq 3 (plist-get p :difficulty))
-                (prog1 hard-tag
-                  (put-text-property
-                   0 (length hard-tag)
-                   'font-lock-face 'leetcode-hard-face hard-tag))))
+              (leetcode--stringify-difficulty (plist-get p :difficulty))
               ;; tags
               (string-join (plist-get p :tags) ", "))
              rows)))
@@ -695,14 +702,14 @@ LeetCode require slug-title as the request parameters."
                       (cond
                        ((eq .status_code 10)
                         (insert "Output:\n")
-			(dotimes (i (length .code_answer))
-			  (insert (aref .code_answer i))
-			  (insert "\n"))
+                        (dotimes (i (length .code_answer))
+                          (insert (aref .code_answer i))
+                          (insert "\n"))
                         (insert "\n")
                         (insert "Expected:\n")
-			(dotimes (i (length .expected_code_answer))
-			  (insert (aref .expected_code_answer i))
-			  (insert "\n"))
+                        (dotimes (i (length .expected_code_answer))
+                          (insert (aref .expected_code_answer i))
+                          (insert "\n"))
                         (insert "\n"))
                        ((eq .status_code 14)
                         (insert .status_msg))
@@ -773,7 +780,7 @@ nil."
 
 (defun leetcode--display-result (buffer &optional alist)
   "Display function for LeetCode result.
-BUFFER is the one to show LeetCode result. ALIST is a combined
+BUFFER is the one to show LeetCode result.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-next-sibling
@@ -786,7 +793,7 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--display-testcase (buffer &optional alist)
   "Display function for LeetCode testcase.
-BUFFER is the one to show LeetCode testcase. ALIST is a combined
+BUFFER is the one to show LeetCode testcase.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-next-sibling
                  (window-top-child
@@ -798,7 +805,7 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--display-code (buffer &optional alist)
   "Display function for LeetCode code.
-BUFFER is the one to show LeetCode code. ALIST is a combined
+BUFFER is the one to show LeetCode code.  ALIST is a combined
 alist specified in `display-buffer-alist'."
   (let ((window (window-left-child (frame-root-window))))
     (set-window-buffer window buffer)
@@ -806,13 +813,13 @@ alist specified in `display-buffer-alist'."
 
 (defun leetcode--show-submission-result (submission-detail)
   "Show error info in `leetcode--result-buffer-name' based on status code.
-Error info comes from SUBMISSION-DETAIL. STATUS_CODE has
+Error info comes from SUBMISSION-DETAIL.  STATUS_CODE has
 following possible value:
 - 10: Accepted
 - 11: Wrong Anwser
 - 14: Time Limit Exceeded
-- 15: Runtime Error. full_runtime_error
-- 20: Compile Error. full_compile_error"
+- 15: Runtime Error.  full_runtime_error
+- 20: Compile Error.  full_compile_error"
   (let-alist submission-detail
     (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
       (erase-buffer)
@@ -896,16 +903,14 @@ following possible value:
   "Generate problem link from TITLE."
   (concat leetcode--base-url "/problems/" (leetcode--slugify-title title)))
 
-(aio-defun leetcode-show-current-problem ()
-  "Show current entry problem description.
-Get current entry by using `tabulated-list-get-entry' and use
-`shr-render-buffer' to render problem description."
-  (interactive)
-  (let* ((entry (tabulated-list-get-entry))
-         (pos (aref entry 1))
-         (title (substring-no-properties (aref entry 2) nil -2)) ;strip paid mark
-         (difficulty (aref entry 4))
-         (problem (aio-await (leetcode--fetch-problem title)))
+(defun leetcode--show-problem (problem problem-info)
+  "Show the description of PROBLEM, whose meta data is PROBLEM-INFO.
+Use `shr-render-buffer' to render problem description.  This action
+will show the description in other window and jump to it."
+  (let* ((problem-id (plist-get problem-info :id))
+         (title (plist-get problem-info :title))
+         (difficulty-level (plist-get problem-info :difficulty))
+         (difficulty (leetcode--stringify-difficulty difficulty-level))
          (buf-name leetcode--description-buffer-name)
          (html-margin "&nbsp;&nbsp;&nbsp;&nbsp;"))
     (leetcode--debug "select title: %s" title)
@@ -913,7 +918,7 @@ Get current entry by using `tabulated-list-get-entry' and use
       (when (get-buffer buf-name)
         (kill-buffer buf-name))
       (with-temp-buffer
-        (insert (concat "<h1>" pos ". " title "</h1>"))
+        (insert (concat "<h1>" (number-to-string problem-id) ". " title "</h1>"))
         (insert (concat (capitalize difficulty) html-margin
                         "likes: " (number-to-string .likes) html-margin
                         "dislikes: " (number-to-string .dislikes)))
@@ -929,10 +934,7 @@ Get current entry by using `tabulated-list-get-entry' and use
           (insert (make-string 4 ?\s))
           (insert-text-button "solve it"
                               'action (lambda (btn)
-                                        (leetcode--start-coding
-                                         title
-                                         (append .codeSnippets nil)
-                                         .sampleTestCase))
+                                        (leetcode--start-coding problem problem-info))
                               'help-echo "solve the problem.")
           (insert (make-string 4 ?\s))
           (insert-text-button "link"
@@ -942,6 +944,77 @@ Get current entry by using `tabulated-list-get-entry' and use
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
+
+(aio-defun leetcode-show-problem (problem-id)
+  "Show the description of problem with id PROBLEM-ID.
+Get problem by id and use `shr-render-buffer' to render problem
+description.  This action will show the description in other
+window and jump to it."
+  (interactive (list (read-number "Show problem by problem id: "
+                                  (leetcode--get-current-problem-id))))
+  (let* ((problem-info (leetcode--get-problem-by-id problem-id))
+         (title (plist-get problem-info :title))
+         (problem (aio-await (leetcode--fetch-problem title))))
+    (leetcode--show-problem problem problem-info)))
+
+(defun leetcode-show-current-problem ()
+  "Show current problem's description.
+Call `leetcode-show-problem' on the current problem id.  This
+action will show the description in other window and jump to it."
+  (interactive)
+  (leetcode-show-problem (leetcode--get-current-problem-id)))
+
+(aio-defun leetcode-view-problem (problem-id)
+  "View problem by PROBLEM-ID while staying in `LC Problems' window.
+Similar with `leetcode-show-problem', but instead of jumping to the
+description window, this action will jump back in `LC Problems'."
+  (interactive (list (read-number "View problem by problem id: "
+                                  (leetcode--get-current-problem-id))))
+  (aio-await (leetcode-show-problem problem-id))
+  (leetcode--jump-to-window-by-buffer-name leetcode--buffer-name))
+
+(defun leetcode-view-current-problem ()
+  "View current problem while staying in `LC Problems' window.
+Similar with `leetcode-show-current-problem', but instead of jumping to
+the description window, this action will jump back in `LC Problems'."
+  (interactive)
+  (leetcode-view-problem (leetcode--get-current-problem-id)))
+
+(defun leetcode-show-problem-in-browser (problem-id)
+  "Open the problem with id PROBLEM-ID in browser."
+  (interactive (list (read-number "Show in browser by problem id: "
+                                  (leetcode--get-current-problem-id))))
+  (let* ((problem (leetcode--get-problem-by-id problem-id))
+         (title (plist-get problem :title))
+         (link (leetcode--problem-link title)))
+    (leetcode--debug "Open in browser: %s" link)
+    (browse-url link)))
+
+(defun leetcode-show-current-problem-in-browser ()
+  "Open the current problem in browser.
+Call `leetcode-show-problem-in-browser' on the current problem id."
+  (interactive)
+  (leetcode-show-problem-in-browser (leetcode--get-current-problem-id)))
+
+(aio-defun leetcode-solve-problem (problem-id)
+  "Start coding the problem with id PROBLEM-ID."
+  (interactive (list (read-number "Solve the problem with id: "
+                                  (leetcode--get-current-problem-id))))
+  (let* ((problem-info (leetcode--get-problem-by-id problem-id))
+         (title (plist-get problem-info :title))
+         (problem (aio-await (leetcode--fetch-problem title))))
+    (leetcode--show-problem problem problem-info)
+    (leetcode--start-coding problem problem-info)))
+
+(defun leetcode-solve-current-problem ()
+  "Start coding the current problem.
+Call `leetcode-solve-problem' on the current problem id."
+  (interactive)
+  (leetcode-solve-problem (leetcode--get-current-problem-id)))
+
+(defun leetcode--jump-to-window-by-buffer-name (buffer-name)
+  "Jump to window by BUFFER-NAME."
+  (select-window (get-buffer-window buffer-name)))
 
 (defun leetcode--kill-buff-and-delete-window (buf)
   "Kill BUF and delete its window."
@@ -1029,65 +1102,88 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
                       (plist-get p :title))))
             (plist-get leetcode--all-problems :problems)))
 
+(defun leetcode--get-problem-by-id (id)
+  "Get problem from `leetcode--all-problems' by ID."
+  (let ((num (plist-get leetcode--all-problems :num))
+        (problems (plist-get leetcode--all-problems :problems)))
+    (when (or (< id 1) (> id num))
+      (user-error "Not found: No such problem with given id `%d'" id))
+    (aref problems (1- id))))
+
 (defun leetcode--get-problem-id (slug-title)
   "Get problem id by SLUG-TITLE."
   (let ((problem (leetcode--get-problem slug-title)))
     (plist-get problem :id)))
 
-(defun leetcode--start-coding (title snippets testcase)
-  "Create a buffer for coding.
-The buffer will be not associated with any file. It will choose
-major mode by `leetcode-prefer-language'and `auto-mode-alist'.
-TITLE is a problem title. SNIPPETS is a list of alist used to
-store eachprogramming language's snippet. TESTCASE is provided
-for current problem."
-  (add-to-list 'leetcode--problem-titles title)
-  (leetcode--solving-layout)
-  (leetcode--set-lang snippets)
-  (let* ((slug-title  (leetcode--slugify-title title))
-         (buf-name (leetcode--get-code-buffer-name title))
-         (code-buf (get-buffer buf-name))
-         (suffix (assoc-default
-                  leetcode--lang
-                  leetcode--lang-suffixes)))
-    (unless code-buf
-      (with-current-buffer (leetcode--get-code-buffer buf-name)
-        (setq code-buf (current-buffer))
-        (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-        (let* ((snippet (seq-find (lambda (s)
-                                    (equal (alist-get 'langSlug s)
-                                           leetcode--lang))
-                                  snippets))
-               (template-code (alist-get 'code snippet)))
-          (unless (save-mark-and-excursion
-                    (goto-char (point-min))
-                    (search-forward (string-trim template-code) nil t))
-            (insert template-code))
-          (leetcode--replace-in-buffer "" ""))))
+(defun leetcode--get-current-problem-id ()
+  "Get id of the current problem."
+  (string-to-number (aref (tabulated-list-get-entry) 1)))
 
-    (display-buffer code-buf
-                    '((display-buffer-reuse-window
-                       leetcode--display-code)
-                      (reusable-frames . visible))))
-  (with-current-buffer (get-buffer-create leetcode--testcase-buffer-name)
-    (erase-buffer)
-    (insert testcase)
-    (display-buffer (current-buffer)
-                    '((display-buffer-reuse-window
-                       leetcode--display-testcase)
-                      (reusable-frames . visible))))
-  (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
-    (erase-buffer)
-    (display-buffer (current-buffer)
-                    '((display-buffer-reuse-window
-                       leetcode--display-result)
-                      (reusable-frames . visible)))))
+(defun leetcode--start-coding (problem problem-info)
+  "Create a buffer for coding PROBLEM with meta-data PROBLEM-INFO.
+The buffer will be not associated with any file.  It will choose
+major mode by `leetcode-prefer-language'and `auto-mode-alist'."
+  (let-alist problem
+    (let* ((title (plist-get problem-info :title))
+           (snippets (append .codeSnippets nil))
+           (testcase .sampleTestCase))
+      (add-to-list 'leetcode--problem-titles title)
+      (leetcode--solving-layout)
+      (leetcode--set-lang snippets)
+      (let* ((slug-title  (leetcode--slugify-title title))
+             (buf-name (leetcode--get-code-buffer-name title))
+             (code-buf (get-buffer buf-name))
+             (suffix (assoc-default
+                      leetcode--lang
+                      leetcode--lang-suffixes)))
+        (unless code-buf
+          (with-current-buffer (leetcode--get-code-buffer buf-name)
+            (setq code-buf (current-buffer))
+            (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
+            (let* ((snippet (seq-find (lambda (s)
+                                        (equal (alist-get 'langSlug s)
+                                               leetcode--lang))
+                                      snippets))
+                   (template-code (alist-get 'code snippet)))
+              (unless (save-mark-and-excursion
+                        (goto-char (point-min))
+                        (search-forward (string-trim template-code) nil t))
+                (insert template-code))
+              (leetcode--replace-in-buffer "" ""))))
+
+        (display-buffer code-buf
+                        '((display-buffer-reuse-window
+                           leetcode--display-code)
+                          (reusable-frames . visible))))
+      (with-current-buffer (get-buffer-create leetcode--testcase-buffer-name)
+        (erase-buffer)
+        (insert testcase)
+        (display-buffer (current-buffer)
+                        '((display-buffer-reuse-window
+                           leetcode--display-testcase)
+                          (reusable-frames . visible))))
+      (with-current-buffer (get-buffer-create leetcode--result-buffer-name)
+        (erase-buffer)
+        (display-buffer (current-buffer)
+                        '((display-buffer-reuse-window
+                           leetcode--display-result)
+                          (reusable-frames . visible))))
+      )))
 
 (defvar leetcode--problems-mode-map
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
       (define-key map (kbd "RET") #'leetcode-show-current-problem)
+      (define-key map (kbd "TAB") #'leetcode-view-current-problem)
+      (define-key map "o" #'leetcode-show-current-problem)
+      (define-key map "O" #'leetcode-show-problem)
+      (define-key map "v" #'leetcode-view-current-problem)
+      (define-key map "V" #'leetcode-view-problem)
+      (define-key map "b" #'leetcode-show-current-problem-in-browser)
+      (define-key map "B" #'leetcode-show-problem-in-browser)
+      (define-key map "c" #'leetcode-solve-current-problem)
+      (define-key map "C" #'leetcode-solve-problem)
       (define-key map "n" #'next-line)
       (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
