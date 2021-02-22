@@ -77,7 +77,7 @@ You can set your preferred LeetCode programming language and SQL by setting
 ```
 
 All supported languages can be found in variable
-`leetcode--prefer-language-suffixes`.
+`leetcode--lang-suffixes`.
 
 You can save solution by setting `leetcode-save-solutions`:
 
