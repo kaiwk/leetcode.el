@@ -341,7 +341,7 @@ USER-AND-PROBLEMS is an alist comes from
     ;; set leetcode--all-tags
     (dolist (topic (to-list .topics))
       (let-alist topic
-        (unless (member topic leetcode--all-tags)
+        (unless (member .slug leetcode--all-tags)
           (push .slug leetcode--all-tags))))))
 
 (defun leetcode--slugify-title (title)
