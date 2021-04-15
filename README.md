@@ -16,6 +16,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | l      | change prefer language                 |
 | s      | filter problems by regex               |
 | t      | filter problems by tag                 |
+| T      | toggle tag display                     |
 | d      | filter problems by difficulty          |
 | /      | clear filters                          |
 | g      | refresh without fetching from LeetCode |
@@ -70,6 +71,9 @@ manually: `pip3 install my_cookies`.
 
 You can set your preferred LeetCode programming language and SQL by setting
 `leetcode-prefer-language` and `leetcode-prefer-sql`:
+
+If you prefer not to see problems' tags in the `*leetcode**`buffer by default.
+set `leetcode-prefer-tag-display` to nil
 
 ```elisp
 (setq leetcode-prefer-language "python3")

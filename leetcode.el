@@ -473,8 +473,8 @@ Return a list of rows, each row is a vector:
               (number-to-string (plist-get p :id))
               ;; title
               (concat
-	           (plist-get p :title)
-	           " "
+               (plist-get p :title)
+               " "
                (if (eq (plist-get p :paid-only) t)
                    (prog1 leetcode--paid
                      (put-text-property
@@ -486,7 +486,7 @@ Return a list of rows, each row is a vector:
               ;; difficulty
               (leetcode--stringify-difficulty (plist-get p :difficulty))
               ;; tags
-              (string-join (plist-get p :tags) ", "))
+              (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
              rows)))
     (reverse rows)))
 
@@ -553,6 +553,12 @@ Return a list of rows, each row is a vector:
         (completing-read "Difficulty: " leetcode--all-difficulties))
   (leetcode-refresh))
 
+(defun leetcode-toggle-tag-display ()
+  "Toggle `leetcode--display-tags` and refresh"
+  (interactive)
+  (setq leetcode--display-tags (not leetcode--display-tags))
+  (leetcode-refresh))
+
 (aio-defun leetcode--fetch-all-tags ()
   (let* ((url-request-method "GET")
          (url-request-extra-headers
@@ -587,7 +593,8 @@ Return a list of rows, each row is a vector:
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."
   (interactive)
-  (let* ((header-names '(" " "#" "Problem" "Acceptance" "Difficulty" "Tags"))
+  (let* ((header-names (append '(" " "#" "Problem" "Acceptance" "Difficulty")
+                               (if leetcode--display-tags '("Tags"))))
          (rows (leetcode--filter (leetcode--problems-rows)))
          (headers (leetcode--make-tabulated-headers header-names rows)))
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
@@ -611,6 +618,7 @@ Return a list of rows, each row is a vector:
         (leetcode--set-user-and-problems users-and-problems)
         (leetcode--set-tags all-tags))
     (leetcode--warn "LeetCode parse user and problems failed"))
+  (setq leetcode--display-tags leetcode-prefer-tag-display)
   (leetcode-reset-filter)
   (leetcode-refresh))
 
@@ -1033,6 +1041,12 @@ Call `leetcode-solve-problem' on the current problem id."
            (get-buffer (leetcode--get-code-buffer-name title))))
         leetcode--problem-titles))
 
+(defvar leetcode-prefer-tag-display t
+  "Whether to display tags by default in the *leetcode* buffer.")
+
+(defvar leetcode--display-tags leetcode-prefer-tag-display
+  "(Internal) Whether tags are displayed the *leetcode* buffer.")
+
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
 c, cpp, csharp, golang, java, javascript, kotlin, php, python,
@@ -1189,6 +1203,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
       (define-key map "s" #'leetcode-set-filter-regex)
       (define-key map "l" #'leetcode-set-prefer-language)
       (define-key map "t" #'leetcode-set-filter-tag)
+      (define-key map "T" #'leetcode-toggle-tag-display)
       (define-key map "d" #'leetcode-set-filter-difficulty)
       (define-key map "g" #'leetcode-refresh)
       (define-key map "G" #'leetcode-refresh-fetch)
