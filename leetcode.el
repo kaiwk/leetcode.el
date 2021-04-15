@@ -1041,8 +1041,9 @@ Call `leetcode-solve-problem' on the current problem id."
            (get-buffer (leetcode--get-code-buffer-name title))))
         leetcode--problem-titles))
 
-(defvar leetcode-prefer-tag-display t
-  "Whether to display tags by default in the *leetcode* buffer.")
+(defcustom leetcode-prefer-tag-display t
+  "Whether to display tags by default in the *leetcode* buffer."
+  :type :boolean)
 
 (defvar leetcode--display-tags leetcode-prefer-tag-display
   "(Internal) Whether tags are displayed the *leetcode* buffer.")
