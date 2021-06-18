@@ -308,7 +308,7 @@ USER-AND-PROBLEMS is an alist comes from
            :tag "all"
            :problems
            (let* ((len .num_total)
-                  (problems (make-vector len nil)))
+                  (problems (make-vector (1+ len) nil)))
              (dotimes (i len)
                (let-alist (aref .stat_status_pairs i)
                  (aset problems (1- .stat.frontend_question_id)
@@ -459,35 +459,36 @@ Return a list of rows, each row is a vector:
         (hard-tag "hard")
         rows)
     (dovec (p problems)
-      (setq rows
-            (cons
-             (vector
-              ;; status
-              (if (equal (plist-get p :status) "ac")
-                  (prog1 leetcode--checkmark
-                    (put-text-property
-                     0 (length leetcode--checkmark)
-                     'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
-                " ")
-              ;; id
-              (number-to-string (plist-get p :id))
-              ;; title
-              (concat
-	           (plist-get p :title)
-	           " "
-               (if (eq (plist-get p :paid-only) t)
-                   (prog1 leetcode--paid
-                     (put-text-property
-                      0 (length leetcode--paid)
-                      'font-lock-face 'leetcode-paid-face leetcode--paid))
-                 " "))
-              ;; acceptance
-              (plist-get p :acceptance)
-              ;; difficulty
-              (leetcode--stringify-difficulty (plist-get p :difficulty))
-              ;; tags
-              (string-join (plist-get p :tags) ", "))
-             rows)))
+      (when p
+        (setq rows
+              (cons
+               (vector
+                ;; status
+                (if (equal (plist-get p :status) "ac")
+                    (prog1 leetcode--checkmark
+                      (put-text-property
+                       0 (length leetcode--checkmark)
+                       'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
+                  " ")
+                ;; id
+                (number-to-string (plist-get p :id))
+                ;; title
+                (concat
+	         (plist-get p :title)
+	         " "
+                 (if (eq (plist-get p :paid-only) t)
+                     (prog1 leetcode--paid
+                       (put-text-property
+                        0 (length leetcode--paid)
+                        'font-lock-face 'leetcode-paid-face leetcode--paid))
+                   " "))
+                ;; acceptance
+                (plist-get p :acceptance)
+                ;; difficulty
+                (leetcode--stringify-difficulty (plist-get p :difficulty))
+                ;; tags
+                (string-join (plist-get p :tags) ", "))
+               rows))))
     (reverse rows)))
 
 (defun leetcode--row-tags (row)
