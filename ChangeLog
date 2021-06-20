@@ -1,3 +1,10 @@
+2021-06-20  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el:
+	- Save problems with list instead of vector, because of problem id inconsistency.
+	- Add variable to control tag display.
+	- Fix duplicate tag after refresh fetch.
+
 2020-07-11  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el: remove dash.el dependency.
