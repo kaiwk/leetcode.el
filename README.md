@@ -61,6 +61,8 @@ install a Python3 package called
 [my\_cookies](https://github.com/kaiwk/my_cookies), or you can install it
 manually: `pip3 install my_cookies`.
 
+Since we are using [shr.el](https://www.emacswiki.org/emacs/HtmlRendering) to render HTML, you may also want to look at [shrface](https://github.com/chenyanming/shrface).
+
 ## Manually
 
 1. Clone this repository and install all dependencies
