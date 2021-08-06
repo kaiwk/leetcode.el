@@ -1026,7 +1026,7 @@ window and jump to it."
          (title (plist-get problem-info :title))
          (problem  (leetcode--fetch-problem title))
 	 )
-    (leetcode--show-problem problem problem-info)))
+    (leetcode-show-problem problem-id)))
 
 (defun leetcode-show-current-problem ()
   "Show current problem's description.
