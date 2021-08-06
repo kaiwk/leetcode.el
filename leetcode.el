@@ -460,35 +460,66 @@ Return a list of rows, each row is a vector:
         (hard-tag "hard")
         rows)
     (dolist (p problems)
-      (setq rows
-            (cons
-             (vector
-              ;; status
-              (if (equal (plist-get p :status) "ac")
-                  (prog1 leetcode--checkmark
-                    (put-text-property
-                     0 (length leetcode--checkmark)
-                     'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
-                " ")
-              ;; id
-              (number-to-string (plist-get p :id))
-              ;; title
-              (concat
-               (plist-get p :title)
-               " "
-               (if (eq (plist-get p :paid-only) t)
-                   (prog1 leetcode--paid
-                     (put-text-property
-                      0 (length leetcode--paid)
-                      'font-lock-face 'leetcode-paid-face leetcode--paid))
-                 " "))
-              ;; acceptance
-              (plist-get p :acceptance)
-              ;; difficulty
-              (leetcode--stringify-difficulty (plist-get p :difficulty))
-              ;; tags
-              (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
-             rows)))
+      (if leetcode--display-paid 
+	  (setq rows
+		(cons
+		 (vector
+		  ;; status
+		  (if (equal (plist-get p :status) "ac")
+                      (prog1 leetcode--checkmark
+			(put-text-property
+			 0 (length leetcode--checkmark)
+			 'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
+                    " ")
+		  ;; id
+		  (number-to-string (plist-get p :id))
+		  ;; title
+		  (concat
+		   (plist-get p :title)
+		   " "
+		   (if (eq (plist-get p :paid-only) t)
+                       (prog1 leetcode--paid
+			 (put-text-property
+			  0 (length leetcode--paid)
+			  'font-lock-face 'leetcode-paid-face leetcode--paid))
+                     " "))
+		  ;; acceptance
+		  (plist-get p :acceptance)
+		  ;; difficulty
+		  (leetcode--stringify-difficulty (plist-get p :difficulty))
+		  ;; tags
+		  (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
+		 rows))
+	(unless (plist-get p :paid-only)      (setq rows
+						    (cons
+						     (vector
+						      ;; status
+						      (if (equal (plist-get p :status) "ac")
+							  (prog1 leetcode--checkmark
+							    (put-text-property
+							     0 (length leetcode--checkmark)
+							     'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
+							" ")
+						      ;; id
+						      (number-to-string (plist-get p :id))
+						      ;; title
+						      (concat
+						       (plist-get p :title)
+						       " "
+						       (if (eq (plist-get p :paid-only) t)
+							   (prog1 leetcode--paid
+							     (put-text-property
+							      0 (length leetcode--paid)
+							      'font-lock-face 'leetcode-paid-face leetcode--paid))
+							 " "))
+						      ;; acceptance
+						      (plist-get p :acceptance)
+						      ;; difficulty
+						      (leetcode--stringify-difficulty (plist-get p :difficulty))
+						      ;; tags
+						      (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
+						     rows))
+		)))
     (reverse rows)))
 
 (defun leetcode--row-tags (row)
@@ -557,6 +588,12 @@ Return a list of rows, each row is a vector:
   "Toggle `leetcode--display-tags` and refresh"
   (interactive)
   (setq leetcode--display-tags (not leetcode--display-tags))
+  (leetcode-refresh))
+
+(defun leetcode-toggle-paid-display ()
+  "Toggle `leetcode--display-paid` and refresh"
+  (interactive)
+  (setq leetcode--display-paid (not leetcode--display-paid))
   (leetcode-refresh))
 
 (aio-defun leetcode--fetch-all-tags ()
@@ -940,15 +977,22 @@ will show the description in other window and jump to it."
         (save-match-data
           (re-search-forward "dislikes: .*" nil t)
           (insert (make-string 4 ?\s))
-          (insert-text-button "solve it"
+          (insert-text-button "Solve it"
                               'action (lambda (btn)
                                         (leetcode--start-coding problem problem-info))
                               'help-echo "solve the problem.")
           (insert (make-string 4 ?\s))
-          (insert-text-button "link"
+          (insert-text-button "Link"
                               'action (lambda (btn)
                                         (browse-url (leetcode--problem-link title)))
-                              'help-echo "open the problem in browser."))
+                              'help-echo "open the problem in browser.")
+	  (insert (make-string 4 ?\s))
+          (insert-text-button "Solution"
+                              'action (lambda (btn)
+                                        (browse-url (concat (leetcode--problem-link title) "/solution")))
+                              'help-echo "Open the problem solution page in browser.")
+	  ;; Would be best to parse the solution in Emacs, but the url-retrieve-synchronously only get the Javascript which generate the solution in HTML, not directly text
+	  )
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
@@ -963,6 +1007,25 @@ window and jump to it."
   (let* ((problem-info (leetcode--get-problem-by-id problem-id))
          (title (plist-get problem-info :title))
          (problem (aio-await (leetcode--fetch-problem title))))
+    (leetcode--show-problem problem problem-info)))
+
+(defun leetcode-show-problem-by-slug (slug-title)
+  "Show the description of problem with slug title. This function will work after first run M-x leetcode. This can be used with org-link elisp:(leetcode-show-problem-by-slug \"3sum\").
+Get problem by id and use `shr-render-buffer' to render problem
+description.  This action will show the description in other
+window and jump to it."
+  (interactive (list (read-number "Show problem by problem id: "
+                                  (leetcode--get-current-problem-id))))
+  (let* ((problem (seq-find (lambda (p)
+                              (equal slug-title
+                                     (leetcode--slugify-title
+                                      (plist-get p :title))))
+                            (plist-get leetcode--all-problems :problems)))
+         (problem-id (plist-get problem :id))
+	 (problem-info (leetcode--get-problem-by-id problem-id))
+         (title (plist-get problem-info :title))
+         (problem  (leetcode--fetch-problem title))
+	 )
     (leetcode--show-problem problem problem-info)))
 
 (defun leetcode-show-current-problem ()
@@ -1047,6 +1110,9 @@ Call `leetcode-solve-problem' on the current problem id."
 
 (defvar leetcode--display-tags leetcode-prefer-tag-display
   "(Internal) Whether tags are displayed the *leetcode* buffer.")
+
+(defvar leetcode--display-paid nil
+  "(Internal) Whether paid problems are displayed the *leetcode* buffer.")
 
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
@@ -1203,6 +1269,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
       (define-key map "l" #'leetcode-set-prefer-language)
       (define-key map "t" #'leetcode-set-filter-tag)
       (define-key map "T" #'leetcode-toggle-tag-display)
+      (define-key map "P" #'leetcode-toggle-paid-display)      
       (define-key map "d" #'leetcode-set-filter-difficulty)
       (define-key map "g" #'leetcode-refresh)
       (define-key map "G" #'leetcode-refresh-fetch)
