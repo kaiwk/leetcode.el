@@ -99,3 +99,8 @@ Call `leetcode-toggle-debug`, log will output in `*leetcode-log*` buffer.
 # Contributing
 
 Please submit PR to develop branch.
+
+# Added filter to exclude paid only questions and leetcode-show-problem-by-slug
+Just use `leetcode-toggle-paid-display` to toggle if paid only should be shown.
+
+`leetcode-show-problem-by-slug` will let you put to org files with a link in this format to show the question after the *leetcode* buffer is load like [elisp:(leetcode-show-problem-by-slug (leetcode--slugify-title "ZigZag Conversion"))]
