@@ -1050,7 +1050,7 @@ Call `leetcode-solve-problem' on the current problem id."
 
 (defvar leetcode-prefer-language "python3"
   "LeetCode programming language.
-c, cpp, csharp, golang, java, javascript, kotlin, php, python,
+c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift.")
 
 (defvar leetcode-prefer-sql "mysql"
@@ -1070,12 +1070,12 @@ Default is programming language.")
 (defconst leetcode--lang-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
-    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py")
-    ("python3" . ".py") ("ruby" . ".rb") ("rust" . ".rs")
-    ("scala" . ".scala") ("swift" . ".swift")
+    ("typescript" . ".ts") ("kotlin" . ".kt") ("php" . ".php")
+    ("python" . ".py") ("python3" . ".py") ("ruby" . ".rb")
+    ("rust" . ".rs") ("scala" . ".scala") ("swift" . ".swift")
     ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql"))
   "LeetCode programming language suffixes.
-c, cpp, csharp, golang, java, javascript, kotlin, php, python,
+c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defun leetcode--set-lang (snippets)
