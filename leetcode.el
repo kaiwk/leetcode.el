@@ -1,4 +1,4 @@
-;;; leetcode.el --- An leetcode client.          -*- lexical-binding: t; no-byte-compile: t -*-
+;;; leetcode.el --- An leetcode client           -*- lexical-binding: t; no-byte-compile: t -*-
 
 ;; Copyright (C) 2019  Wang Kai
 
@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.22
+;; Version: 0.1.23
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
