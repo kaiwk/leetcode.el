@@ -330,20 +330,24 @@ USER-AND-PROBLEMS is an alist comes from
 
 (defun leetcode--set-tags (all-tags)
   "Set `leetcode--all-tags' and `leetcode--all-problems' with ALL-TAGS."
-  (let-alist all-tags
-    ;; set problems tags
-    (dolist (problem (plist-get leetcode--all-problems :problems))
-      (dolist (topic (to-list .topics))
-        (let-alist topic
-          (when (member (plist-get problem :backend-id) (to-list .questions))
-            (let ((cur-tags (plist-get problem :tags)))
-              (push .slug cur-tags)
-              (plist-put problem :tags cur-tags))))))
-    ;; set leetcode--all-tags
+  ;; (leetcode--debug "all tags: %s" all-tags)
+  (let-alist all-tags    
     (dolist (topic (to-list .topics))
       (let-alist topic
         (unless (member .slug leetcode--all-tags)
-          (push .slug leetcode--all-tags))))))
+          (push .slug leetcode--all-tags)))))
+  (let ((tags-table (make-hash-table :size 2000)))
+    (let-alist all-tags
+    ;; set problems tags
+      (dolist (topic (to-list .topics))
+	(let-alist topic
+	  (dolist (id (to-list .questions))
+	    (puthash id (cons .slug (gethash id tags-table)) tags-table)))))
+    (dolist (problem (plist-get leetcode--all-problems :problems))
+      (let ((backend-id (plist-get problem :backend-id)))
+	    (plist-put problem :tags (gethash backend-id tags-table)))))
+    ;; set leetcode--all-tags
+    )
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
