@@ -330,24 +330,20 @@ USER-AND-PROBLEMS is an alist comes from
 
 (defun leetcode--set-tags (all-tags)
   "Set `leetcode--all-tags' and `leetcode--all-problems' with ALL-TAGS."
-  ;; (leetcode--debug "all tags: %s" all-tags)
-  (let-alist all-tags    
-    (dolist (topic (to-list .topics))
-      (let-alist topic
-        (unless (member .slug leetcode--all-tags)
-          (push .slug leetcode--all-tags)))))
   (let ((tags-table (make-hash-table :size 2000)))
     (let-alist all-tags
-    ;; set problems tags
       (dolist (topic (to-list .topics))
-	(let-alist topic
-	  (dolist (id (to-list .questions))
-	    (puthash id (cons .slug (gethash id tags-table)) tags-table)))))
+        (let-alist topic
+          ;; set leetcode--all-tags
+          (unless (member .slug leetcode--all-tags)
+            (push .slug leetcode--all-tags))
+          ;; tags-table cache
+          (dolist (id (to-list .questions))
+            (puthash id (cons .slug (gethash id tags-table)) tags-table)))))
+    ;; set problems tags with tags-table
     (dolist (problem (plist-get leetcode--all-problems :problems))
       (let ((backend-id (plist-get problem :backend-id)))
-	    (plist-put problem :tags (gethash backend-id tags-table)))))
-    ;; set leetcode--all-tags
-    )
+        (plist-put problem :tags (gethash backend-id tags-table))))))
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
@@ -464,66 +460,37 @@ Return a list of rows, each row is a vector:
         (hard-tag "hard")
         rows)
     (dolist (p problems)
-      (if leetcode--display-paid 
-	  (setq rows
-		(cons
-		 (vector
-		  ;; status
-		  (if (equal (plist-get p :status) "ac")
+      (if (or leetcode--display-paid
+              (not (plist-get p :paid-only)))
+          (setq rows
+                (cons
+                 (vector
+                  ;; status
+                  (if (equal (plist-get p :status) "ac")
                       (prog1 leetcode--checkmark
-			(put-text-property
-			 0 (length leetcode--checkmark)
-			 'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
+                        (put-text-property
+                         0 (length leetcode--checkmark)
+                         'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
                     " ")
-		  ;; id
-		  (number-to-string (plist-get p :id))
-		  ;; title
-		  (concat
-		   (plist-get p :title)
-		   " "
-		   (if (eq (plist-get p :paid-only) t)
+                  ;; id
+                  (number-to-string (plist-get p :id))
+                  ;; title
+                  (concat
+                   (plist-get p :title)
+                   " "
+                   (if (eq (plist-get p :paid-only) t)
                        (prog1 leetcode--paid
-			 (put-text-property
-			  0 (length leetcode--paid)
-			  'font-lock-face 'leetcode-paid-face leetcode--paid))
+                         (put-text-property
+                          0 (length leetcode--paid)
+                          'font-lock-face 'leetcode-paid-face leetcode--paid))
                      " "))
-		  ;; acceptance
-		  (plist-get p :acceptance)
-		  ;; difficulty
-		  (leetcode--stringify-difficulty (plist-get p :difficulty))
-		  ;; tags
-		  (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
-		 rows))
-	(unless (plist-get p :paid-only)      (setq rows
-						    (cons
-						     (vector
-						      ;; status
-						      (if (equal (plist-get p :status) "ac")
-							  (prog1 leetcode--checkmark
-							    (put-text-property
-							     0 (length leetcode--checkmark)
-							     'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
-							" ")
-						      ;; id
-						      (number-to-string (plist-get p :id))
-						      ;; title
-						      (concat
-						       (plist-get p :title)
-						       " "
-						       (if (eq (plist-get p :paid-only) t)
-							   (prog1 leetcode--paid
-							     (put-text-property
-							      0 (length leetcode--paid)
-							      'font-lock-face 'leetcode-paid-face leetcode--paid))
-							 " "))
-						      ;; acceptance
-						      (plist-get p :acceptance)
-						      ;; difficulty
-						      (leetcode--stringify-difficulty (plist-get p :difficulty))
-						      ;; tags
-						      (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
-						     rows))
-		)))
+                  ;; acceptance
+                  (plist-get p :acceptance)
+                  ;; difficulty
+                  (leetcode--stringify-difficulty (plist-get p :difficulty))
+                  ;; tags
+                  (if leetcode--display-tags (string-join (plist-get p :tags) ", ") ""))
+                 rows))))
     (reverse rows)))
 
 (defun leetcode--row-tags (row)
@@ -990,13 +957,13 @@ will show the description in other window and jump to it."
                               'action (lambda (btn)
                                         (browse-url (leetcode--problem-link title)))
                               'help-echo "open the problem in browser.")
-	  (insert (make-string 4 ?\s))
+          (insert (make-string 4 ?\s))
           (insert-text-button "Solution"
                               'action (lambda (btn)
                                         (browse-url (concat (leetcode--problem-link title) "/solution")))
                               'help-echo "Open the problem solution page in browser.")
-	  ;; Would be best to parse the solution in Emacs, but the url-retrieve-synchronously only get the Javascript which generate the solution in HTML, not directly text
-	  )
+          ;; Would be best to parse the solution in Emacs, but the url-retrieve-synchronously only get the Javascript which generate the solution in HTML, not directly text
+          )
         (rename-buffer buf-name)
         (leetcode--problem-description-mode)
         (switch-to-buffer (current-buffer))))))
@@ -1026,10 +993,9 @@ window and jump to it."
                                       (plist-get p :title))))
                             (plist-get leetcode--all-problems :problems)))
          (problem-id (plist-get problem :id))
-	 (problem-info (leetcode--get-problem-by-id problem-id))
+         (problem-info (leetcode--get-problem-by-id problem-id))
          (title (plist-get problem-info :title))
-         (problem  (leetcode--fetch-problem title))
-	 )
+         (problem  (leetcode--fetch-problem title)))
     (leetcode-show-problem problem-id)))
 
 (defun leetcode-show-current-problem ()
