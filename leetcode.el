@@ -348,7 +348,7 @@ USER-AND-PROBLEMS is an alist comes from
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
 Such as 'Two Sum' will be converted to 'two-sum'."
-  (let* ((str1 (replace-regexp-in-string "\s+" "-" (downcase title)))
+  (let* ((str1 (replace-regexp-in-string "[\s-]+" "-" (downcase title)))
          (res (replace-regexp-in-string "[(),]" "" str1)))
     res))
 
