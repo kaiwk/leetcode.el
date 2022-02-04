@@ -33,7 +33,8 @@
 ;; Since most HTTP requests works asynchronously, it won't block Emacs.
 ;;
 ;;; Code:
-
+(eval-when-compile
+  (require 'let-alist))
 
 (require 'json)
 (require 'shr)
@@ -177,6 +178,10 @@ The elements of :problems has attributes:
 (defconst leetcode--api-graphql             (concat leetcode--base-url "/graphql"))
 (defconst leetcode--api-all-problems        (concat leetcode--api-root "/problems/all/"))
 (defconst leetcode--api-all-tags            (concat leetcode--base-url "/problems/api/tags"))
+(defconst leetcode--api-daily-challenge
+  (concat
+   "query questionOfToday { activeDailyCodingChallengeQuestion {"
+   " link question { status title titleSlug qid: questionFrontendId } } }"))
 ;; submit
 (defconst leetcode--api-submit              (concat leetcode--base-url "/problems/%s/submit/"))
 (defconst leetcode--api-problems-submission (concat leetcode--base-url "/problems/%s/submissions/"))
@@ -639,6 +644,28 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
   (if (leetcode--check-deps)
       (leetcode--async)
     (message "installing leetcode dependencies...")))
+
+;;;###autoload(autoload 'leetcode-daily "leetcode" nil t)
+(aio-defun leetcode-daily ()
+  "Open the daily challenge."
+  (interactive)
+  (unless (leetcode--login-p)
+    (aio-await (leetcode)))
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers
+          `(,leetcode--User-Agent
+            ("Content-Type" . "application/json")
+            ,(leetcode--referer leetcode--url-login) 
+            ,(cons leetcode--X-CSRFToken (leetcode--maybe-csrf-token))))
+         (url-request-data
+          (json-encode
+           `((operationName . "questionOfToday")
+             (query . ,leetcode--api-daily-challenge)))))
+    (with-current-buffer (url-retrieve-synchronously leetcode--api-graphql)
+      (goto-char url-http-end-of-headers)
+      (let-alist (json-read)
+        (let ((qid .data.activeDailyCodingChallengeQuestion.question.qid))
+          (leetcode-show-problem (string-to-number qid)))))))
 
 (defun leetcode--buffer-content (buf)
   "Get content without text properties of BUF."
