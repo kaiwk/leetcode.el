@@ -1,3 +1,10 @@
+2022-02-06  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el:
+	- Add leetcode-daily
+	- Fix slugify title regex
+	- Optmize tags parsing with hash table
+
 2021-06-20  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el:
