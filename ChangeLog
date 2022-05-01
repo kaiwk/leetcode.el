@@ -1,3 +1,9 @@
+2022-05-02  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el:
+	- use `cl-defstruct` to defien abstract type
+	- remove hardcode constants
+
 2022-02-06  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el:
