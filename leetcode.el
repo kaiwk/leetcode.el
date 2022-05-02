@@ -223,6 +223,16 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
   "Face for hard problems."
   :group 'leetcode)
 
+(defface leetcode-accepted-face
+  '((t (:foreground "#228b22")))
+  "Face for submission accepted."
+  :group 'leetcode)
+
+(defface leetcode-error-face
+  '((t (:foreground "#dc143c")))
+  "Face for submission compile error, runtime error and TLE."
+  :group 'leetcode)
+
 ;;; Login
 ;; URL
 (defconst leetcode--domain    "leetcode.com")
@@ -321,20 +331,17 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
         (hard-tag "hard"))
     (cond
      ((eq 1 difficulty)
-      (prog1 easy-tag
-        (put-text-property
-         0 (length easy-tag)
-         'font-lock-face 'leetcode-easy-face easy-tag)))
+      (leetcode--add-font-lock easy-tag 'leetcode-easy-face))
      ((eq 2 difficulty)
-      (prog1 medium-tag
-        (put-text-property
-         0 (length medium-tag)
-         'font-lock-face 'leetcode-medium-face medium-tag)))
+      (leetcode--add-font-lock medium-tag 'leetcode-medium-face))
      ((eq 3 difficulty)
-      (prog1 hard-tag
-        (put-text-property
-         0 (length hard-tag)
-         'font-lock-face 'leetcode-hard-face hard-tag))))))
+      (leetcode--add-font-lock hard-tag 'leetcode-hard-face)))))
+
+(defun leetcode--add-font-lock (str face)
+  (prog1 str
+    (put-text-property
+     0 (length str)
+     'font-lock-face face str)))
 
 (defun leetcode--detail-buffer-name (problem-id)
   "Detail buffer name."
@@ -588,10 +595,7 @@ Return a list of rows, each row is a vector:
                  (vector
                   ;; status
                   (if (equal (leetcode-problem-status p) "ac")
-                      (prog1 leetcode--checkmark
-                        (put-text-property
-                         0 (length leetcode--checkmark)
-                         'font-lock-face 'leetcode-checkmark-face leetcode--checkmark))
+                      (leetcode--add-font-lock leetcode--checkmark 'leetcode-checkmark-face)
                     " ")
                   ;; id
                   (number-to-string (leetcode-problem-id p))
@@ -600,10 +604,7 @@ Return a list of rows, each row is a vector:
                    (leetcode-problem-title p)
                    " "
                    (if (eq (leetcode-problem-paid-only p) t)
-                       (prog1 leetcode--paid
-                         (put-text-property
-                          0 (length leetcode--paid)
-                          'font-lock-face 'leetcode-paid-face leetcode--paid))
+                       (leetcode--add-font-lock leetcode--paid 'leetcode-paid-face)
                      " "))
                   ;; acceptance
                   (leetcode-problem-acceptance p)
@@ -848,11 +849,11 @@ LeetCode require slug-title as the request parameters."
                      ((eq .status_code 14)
                       (insert .status_msg))
                      ((eq .status_code 15)
-                      (insert .status_msg)
+                      (insert (leetcode--add-font-lock .status_msg 'leetcode-error-face))
                       (insert "\n\n")
                       (insert .full_runtime_error))
                      ((eq .status_code 20)
-                      (insert .status_msg)
+                      (insert (leetcode--add-font-lock .status_msg 'leetcode-error-face))
                       (insert "\n\n")
                       (insert .full_compile_error)))
                     (when (> (length .code_output) 0)
@@ -944,28 +945,38 @@ STATUS_CODE has following possible value:
   (let-alist submission-detail
     (with-current-buffer (get-buffer-create (leetcode--result-buffer-name problem-id))
       (erase-buffer)
-      (insert (format "Status: %s" .status_msg))
+      (font-lock-mode +1)
       (cond
        ((eq .status_code 10)
-        (insert (format " (%s/%s)\n\n" .total_correct .total_testcases))
+        (insert (format "Status: %s\n\n"
+                        (leetcode--add-font-lock
+                         (format "%s (%s/%s)" .status_msg .total_correct .total_testcases)
+                         'leetcode-accepted-face)))
         (insert (format "Runtime: %s, faster than %.2f%% of %s submissions.\n\n"
                         .status_runtime .runtime_percentile .pretty_lang))
         (insert (format "Memory Usage: %s, less than %.2f%% of %s submissions."
                         .status_memory .memory_percentile .pretty_lang)))
        ((eq .status_code 11)
-        (insert (format " (%s/%s)\n\n" .total_correct .total_testcases))
+        (insert (format "Status: %s\n\n"
+                        (leetcode--add-font-lock
+                         (format "%s (%s/%s)" .status_msg .total_correct .total_testcases)
+                         'leetcode-error-face)))
         (insert (format "Test Case: \n%s\n\n" .input))
         (insert (format "Answer: %s\n\n" .code_output))
         (insert (format "Expected Answer: %s\n\n" .expected_output))
-        (insert (format "Stdout: \n%s\n" .std_output)))
+        (unless (string-empty-p .std_output)
+          (insert (format "Stdout: \n%s\n" .std_output))))
        ((eq .status_code 14)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
         (insert "\n"))
        ((eq .status_code 15)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
         (insert "\n\n")
-        (insert (format (alist-get 'full_runtime_error submission-detail))))
+        (insert (format .full_runtime_error)))
        ((eq .status_code 20)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
         (insert "\n\n")
-        (insert (format (alist-get 'full_compile_error submission-detail)))))
+        (insert (format .full_compile_error))))
       (display-buffer (current-buffer)
                       '((display-buffer-reuse-window
                          leetcode--display-result)
