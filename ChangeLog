@@ -5,6 +5,7 @@
 	- remove hardcode constants
 	- add `leetcode-solution-mode`, provide more keybindings
 	- add `leetcode-focus` option to avoid messy windows
+	- add result font lock
 
 2022-02-06  Wang Kai  <kaiwkx@gmail.com>
 
