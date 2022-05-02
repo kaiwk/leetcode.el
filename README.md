@@ -43,6 +43,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 In `leetcode-solution-mode`, you will have:
 
 | Keymap  | Description            |
+|---------|------------------------|
 | C-c C-t | run code with testcase |
 | C-c C-s | submit                 |
 | C-c C-r | restore window layout  |
