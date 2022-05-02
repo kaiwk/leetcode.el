@@ -3,6 +3,8 @@
 	* leetcode.el:
 	- use `cl-defstruct` to defien abstract type
 	- remove hardcode constants
+	- add `leetcode-solution-mode`, provide more keybindings
+	- add `leetcode-focus` option to avoid messy windows
 
 2022-02-06  Wang Kai  <kaiwkx@gmail.com>
 
