@@ -6,7 +6,7 @@
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
 ;; Package-Requires: ((emacs "26.1") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
-;; Version: 0.1.26
+;; Version: 0.1.27
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -1326,10 +1326,8 @@ It will restore the layout based on current buffer's name."
       (define-key map "B" #'leetcode-show-problem-in-browser)
       (define-key map "c" #'leetcode-solve-current-problem)
       (define-key map "C" #'leetcode-solve-problem)
-      (define-key map "n" #'next-line)
-      (define-key map "p" #'previous-line)
       (define-key map "s" #'leetcode-set-filter-regex)
-      (define-key map "l" #'leetcode-set-prefer-language)
+      (define-key map "L" #'leetcode-set-prefer-language)
       (define-key map "t" #'leetcode-set-filter-tag)
       (define-key map "T" #'leetcode-toggle-tag-display)
       (define-key map "P" #'leetcode-toggle-paid-display)
@@ -1348,7 +1346,15 @@ It will restore the layout based on current buffer's name."
   :group 'leetcode
   :keymap leetcode--problems-mode-map)
 
+(defun leetcode--set-evil-local-map (map)
+  "Set `evil-normal-state-local-map' to MAP."
+  (when (featurep 'evil)
+    (define-key map "h" nil)
+    (setq evil-normal-state-local-map map)))
+
 (add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
+(add-hook 'leetcode--problems-mode-hook
+          (lambda () (leetcode--set-evil-local-map leetcode--problems-mode-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Detail Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1356,8 +1362,7 @@ It will restore the layout based on current buffer's name."
   (let ((map (make-sparse-keymap)))
     (prog1 map
       (suppress-keymap map)
-      (define-key map "n" #'next-line)
-      (define-key map "p" #'previous-line)))
+      (define-key map "q" #'quit-window)))
   "Keymap for `leetcode--problem-detail-mode'.")
 
 (define-derived-mode leetcode--problem-detail-mode
@@ -1365,6 +1370,9 @@ It will restore the layout based on current buffer's name."
   "Major mode for display problem detail."
   :group 'leetcode
   :keymap leetcode--problem-detail-mode-map)
+
+(add-hook 'leetcode--problem-detail-mode-hook
+          (lambda () (leetcode--set-evil-local-map leetcode--problem-detail-mode-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Loading Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

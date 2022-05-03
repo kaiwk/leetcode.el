@@ -11,8 +11,6 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 | Keymap | Description                              |
 |--------|------------------------------------------|
-| n      | cursor move down                         |
-| p      | cursor move up                           |
 | o      | show current problem                     |
 | O      | show problem by prompting problem id     |
 | v      | view the current problem                 |
@@ -29,7 +27,7 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 | P      | toggle paid problems display             |
 | g      | refresh without fetching from LeetCode   |
 | G      | refresh all problems                     |
-| l      | change prefer language                   |
+| L      | change prefer language                   |
 | RET    | show current problem                     |
 | TAB    | view current problem                     |
 

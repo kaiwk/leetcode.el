@@ -1,3 +1,7 @@
+2022-05-03  Wang Kai  <kaiwkx@gmail.com>
+
+	* leetcode.el (leetcode--set-evil-local-map): set evil-normal-state-local-map.
+
 2022-05-02  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el:
