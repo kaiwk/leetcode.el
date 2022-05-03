@@ -11,8 +11,6 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 | Keymap | Description                              |
 |--------|------------------------------------------|
-| n      | cursor move down                         |
-| p      | cursor move up                           |
 | o      | show current problem                     |
 | O      | show problem by prompting problem id     |
 | v      | view the current problem                 |
