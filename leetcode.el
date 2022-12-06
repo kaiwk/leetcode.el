@@ -1246,25 +1246,27 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
       (leetcode--set-lang snippets)
       (let* ((slug-title (leetcode--slugify-title title))
              (code-buf-name (leetcode--get-code-buffer-name title))
-             (code-buf (get-buffer code-buf-name))
+             (code-buf (leetcode--get-code-buffer code-buf-name))
              (suffix (assoc-default
                       leetcode--lang
                       leetcode--lang-suffixes)))
-        (unless code-buf
-          (with-current-buffer (leetcode--get-code-buffer code-buf-name)
-            (setq code-buf (current-buffer))
-            (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-            (leetcode-solution-mode t)
-            (let* ((snippet (seq-find (lambda (s)
-                                        (equal (alist-get 'langSlug s)
-                                               leetcode--lang))
-                                      snippets))
-                   (template-code (alist-get 'code snippet)))
-              (unless (save-mark-and-excursion
-                        (goto-char (point-min))
-                        (search-forward (string-trim template-code) nil t))
-                (insert template-code))
-              (leetcode--replace-in-buffer "" ""))))
+        (if (= (buffer-size code-buf) 0)
+            (with-current-buffer code-buf
+              (setq code-buf (current-buffer))
+              (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
+              (leetcode-solution-mode t)
+              (let* ((snippet (seq-find (lambda (s)
+                                          (equal (alist-get 'langSlug s)
+                                                 leetcode--lang))
+                                        snippets))
+                     (template-code (alist-get 'code snippet)))
+                (unless (save-mark-and-excursion
+                          (goto-char (point-min))
+                          (search-forward (string-trim template-code) nil t))
+                  (insert template-code))
+                (leetcode--replace-in-buffer "" "")))
+          (with-current-buffer code-buf
+            (leetcode-solution-mode t)))
 
         (display-buffer code-buf
                         '((display-buffer-reuse-window
