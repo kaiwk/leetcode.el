@@ -1050,7 +1050,7 @@ will show the detail in other window and jump to it."
         ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
         (leetcode--replace-in-buffer "https" "http")
         (shr-render-buffer (current-buffer)))
-      (with-current-buffer buf-name
+      (with-current-buffer "*html*"
         (save-match-data
           (re-search-forward "dislikes: .*" nil t)
           (insert (make-string 4 ?\s))
@@ -1068,6 +1068,7 @@ will show the detail in other window and jump to it."
                               'action (lambda (btn)
                                         (browse-url (concat (leetcode--problem-link title) "/solution")))
                               'help-echo "Open the problem solution page in browser."))
+        (rename-buffer buf-name)
         (leetcode--problem-detail-mode)
         (switch-to-buffer (current-buffer))))))
 
