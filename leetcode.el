@@ -177,10 +177,11 @@ Default is programming language.")
 
 (defconst leetcode--lang-suffixes
   '(("c" . ".c") ("cpp" . ".cpp") ("csharp" . ".cs")
+    ("dart" . ".dart") ("elixir" . ".ex") ("erlang" . ".erl")
     ("golang" . ".go") ("java" . ".java") ("javascript" . ".js")
-    ("typescript" . ".ts") ("kotlin" . ".kt") ("php" . ".php")
-    ("python" . ".py") ("python3" . ".py") ("ruby" . ".rb")
-    ("rust" . ".rs") ("scala" . ".scala") ("swift" . ".swift")
+    ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py") ("python3" . ".py")
+    ("racket" . ".rkt") ("ruby" . ".rb") ("rust" . ".rs")
+    ("scala" . ".scala") ("swift" . ".swift") ("typescript" . ".ts")
     ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql"))
   "LeetCode programming language suffixes.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
