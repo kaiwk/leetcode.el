@@ -1061,7 +1061,8 @@ will show the detail in other window and jump to it."
                               'help-echo "Open the problem solution page in browser."))
         (rename-buffer buf-name)
         (leetcode--problem-detail-mode)
-        (switch-to-buffer (current-buffer))))))
+        (switch-to-buffer (current-buffer))
+        (search-backward "Solve it")))))
 
 (aio-defun leetcode-show-problem (problem-id)
   "Show the detail of problem with id PROBLEM-ID.
