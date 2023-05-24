@@ -9,27 +9,27 @@ LeetCode brings you offer, and now Emacs brings you LeetCode!
 
 1. Execute `leetcode` command, and in problem list buffer:
 
-| Keymap | Description                              |
-|--------|------------------------------------------|
-| o      | show current problem                     |
-| O      | show problem by prompting problem id     |
-| v      | view the current problem                 |
-| V      | view a problem by prompting problem id   |
-| b      | show the current problem in browser      |
-| B      | show a problem by  problem id in browser |
-| c      | start coding the current problem         |
-| C      | start coding a problem by problem id     |
-| s      | filter problems by regex                 |
-| t      | filter problems by tag                   |
-| T      | toggle tag display                       |
-| d      | filter problems by difficulty            |
-| r      | reset filters                            |
-| P      | toggle paid problems display             |
-| g      | refresh without fetching from LeetCode   |
-| G      | refresh all problems                     |
-| L      | change prefer language                   |
-| RET    | show current problem                     |
-| TAB    | view current problem                     |
+| Keymap              | Description                              |
+|---------------------|------------------------------------------|
+| o                   | show current problem                     |
+| O                   | show problem by prompting problem id     |
+| v                   | view the current problem                 |
+| V                   | view a problem by prompting problem id   |
+| b                   | show the current problem in browser      |
+| B                   | show a problem by  problem id in browser |
+| c                   | start coding the current problem         |
+| C                   | start coding a problem by problem id     |
+| s                   | filter problems by regex                 |
+| t                   | filter problems by tag                   |
+| T                   | toggle tag display                       |
+| d                   | filter problems by difficulty            |
+| r                   | reset filters                            |
+| P                   | toggle paid problems display             |
+| g (z for evil-mode) | refresh without fetching from LeetCode   |
+| G (Z for evil-mode) | refresh all problems                     |
+| L                   | change prefer language                   |
+| RET                 | show current problem                     |
+| TAB                 | view current problem                     |
 
 2. Press `<RET>`, show problem detail, move cursor to "solve it", press `<RET>` again, start coding!
 
@@ -80,8 +80,7 @@ If you prefer not to see problems' tags in the `*leetcode**`buffer by default. s
 (setq leetcode-prefer-sql "mysql")
 ```
 
-All supported languages can be found in variable
-`leetcode--lang-suffixes`.
+All supported languages can be found in variable `leetcode--lang-suffixes`.
 
 You can save solution by setting `leetcode-save-solutions`:
 

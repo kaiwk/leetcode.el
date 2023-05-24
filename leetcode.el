@@ -1045,7 +1045,8 @@ will show the detail in other window and jump to it."
         (insert (concat (capitalize difficulty) html-margin
                         "likes: " (number-to-string .likes) html-margin
                         "dislikes: " (number-to-string .dislikes)))
-        (insert .content)
+        ;; Sometimes LeetCode don't have a '<p>' at the outermost...
+        (insert "<p>" .content "</p>")
         (setq shr-current-font t)
         (leetcode--replace-in-buffer "" "")
         ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
@@ -1357,6 +1358,14 @@ It will restore the layout based on current buffer's name."
   "Set `evil-normal-state-local-map' to MAP."
   (when (featurep 'evil)
     (define-key map "h" nil)
+    (define-key map "v" nil)
+    (define-key map "V" nil)
+    (define-key map "b" nil)
+    (define-key map "B" nil)
+    (define-key map "g" nil)
+    (define-key map "G" nil)
+    (define-key map "z" #'leetcode-refresh)
+    (define-key map "Z" #'leetcode-refresh-fetch)
     (setq evil-normal-state-local-map map)))
 
 (add-hook 'leetcode--problems-mode-hook #'hl-line-mode)
