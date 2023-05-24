@@ -1410,7 +1410,7 @@ It will restore the layout based on current buffer's name."
 (define-minor-mode leetcode-solution-mode
   "Minor mode to provide shortcut and hooks."
   :require 'leetcode
-  :lighter "LC Solution"
+  :lighter " LC-Solution"
   :group 'leetcode
   :keymap leetcode-solution-mode-map)
 
