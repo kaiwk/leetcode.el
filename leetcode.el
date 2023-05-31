@@ -812,7 +812,7 @@ LeetCode require slug-title as the request parameters."
   "Asynchronously test the code using customized testcase."
   (interactive)
   (leetcode--loading-mode t)
-  (let* ((code-buf (current-buffer))
+  (let* ((code-buf (window-buffer (frame-first-window)))
          (slug-title (leetcode--get-slug-title code-buf))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
@@ -1287,6 +1287,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
       (with-current-buffer (get-buffer-create testcase-buf-name)
         (erase-buffer)
         (insert testcase)
+        (leetcode-solution-mode t)
         (set-window-buffer leetcode--testcase-window (current-buffer)))
       (with-current-buffer (get-buffer-create result-buf-name)
         (erase-buffer)
