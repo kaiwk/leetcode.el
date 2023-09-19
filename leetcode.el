@@ -140,11 +140,10 @@ The object with following attributes:
 :backend-id Number
 :title      String
 :acceptance String
-:frequency  Number
 :difficulty Number {1,2,3}
 :paid-only  Boolean {t|nil}
 :tags       List"
-  status id backend-id title acceptance frequency
+  status id backend-id title acceptance
   difficulty paid-only tags)
 
 (cl-defstruct leetcode-problems
@@ -193,14 +192,10 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 (defvar leetcode--filter-difficulty nil
   "Filter rows by difficulty, it can be \"easy\", \"medium\" and \"hard\".")
 
-(defvar leetcode--order "id" "Order of problems, it can be \"id\", \"frequency\" or \"acceptance\".")
-(defvar leetcode--reverse-order nil "Reverse order of problems.")
-
 (defconst leetcode--all-difficulties '("easy" "medium" "hard"))
 (defconst leetcode--paid "•" "Paid mark.")
 (defconst leetcode--checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--all-statuses '("-" "✗" "✓") "All problem status.")
-(defconst leetcode--all-orders '("id" "frequency" "acceptance") "All problem orders.")
 (defconst leetcode--buffer-name             "*leetcode*")
 
 (defconst leetcode--retry-times 20 "`leetcode-try' or `leetcode-submit' retry times.")
@@ -563,7 +558,6 @@ USER-AND-PROBLEMS is an alist comes from
                                     (* 100
                                        (/ (float .stat.total_acs)
                                           .stat.total_submitted)))
-                       :frequency (format "%.1f%%" .frequency)
                        :difficulty .difficulty.level
                        :paid-only (eq .paid_only t))
                       problems)))))))
@@ -618,8 +612,6 @@ Return a list of rows, each row is a vector:
                      " "))
                   ;; acceptance
                   (leetcode-problem-acceptance p)
-                  ;; frequency
-                  (leetcode-problem-frequency p)
                   ;; difficulty
                   (leetcode--stringify-difficulty (leetcode-problem-difficulty p))
                   ;; tags
@@ -628,11 +620,11 @@ Return a list of rows, each row is a vector:
 
 (defun leetcode--row-tags (row)
   "Get tags from ROW."
-  (aref row 6))
+  (aref row 5))
 
 (defun leetcode--row-difficulty (row)
   "Get difficulty from ROW."
-  (aref row 5))
+  (aref row 4))
 
 (defun leetcode--filter (rows)
   "Filter ROWS by `leetcode--filter-status',  `leetcode--filter-regex', `leetcode--filter-tag' and `leetcode--filter-difficulty'."
@@ -657,14 +649,6 @@ Return a list of rows, each row is a vector:
         t)))
    rows))
 
-(defun leetcode--sort-by-order (rows)
-  "Sort ROWS by acceptance."
-  (let ((num (pcase leetcode--order
-               ("id" 1)
-               ("frequency" 4)
-               ("acceptance" 3)))
-        (cmp (if leetcode--reverse-order #'> #'<)))
-    (seq-sort-by (lambda (row) (string-to-number (aref row num))) cmp rows)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; User Command ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -675,13 +659,6 @@ Return a list of rows, each row is a vector:
   (setq leetcode--filter-tag nil)
   (setq leetcode--filter-difficulty nil)
   (setq leetcode--filter-status nil)
-  (leetcode-refresh))
-
-(defun leetcode-reset-order ()
-  "Reset order."
-  (interactive)
-  (setq leetcode--order "id")
-  (setq leetcode--reverse-order nil)
   (leetcode-refresh))
 
 (defun leetcode-set-filter-status ()
@@ -716,19 +693,6 @@ Return a list of rows, each row is a vector:
   (interactive)
   (setq leetcode--filter-difficulty
         (completing-read "Difficulty: " leetcode--all-difficulties))
-  (leetcode-refresh))
-
-(defun leetcode-set-order ()
-  "Set `leetcode--order' from `leetcode--all-orders' and refresh."
-  (interactive)
-  (setq leetcode--order
-        (completing-read "Order by: " leetcode--all-orders))
-  (leetcode-refresh))
-
-(defun leetcode-toggle-reverse-order ()
-  "Toggle `leetcode--reverse-order' and refresh."
-  (interactive)
-  (setq leetcode--reverse-order (not leetcode--reverse-order))
   (leetcode-refresh))
 
 (defun leetcode-toggle-tag-display ()
@@ -766,9 +730,9 @@ row."
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."
   (interactive)
-  (let* ((header-names (append '(" " "#" "Problem" "Acceptance" "Frequency" "Difficulty")
+  (let* ((header-names (append '(" " "#" "Problem" "Acceptance" "Difficulty")
                                (if leetcode--display-tags '("Tags"))))
-         (rows (leetcode--sort-by-order (leetcode--filter (leetcode--problems-rows))))
+         (rows (leetcode--filter (leetcode--problems-rows)))
          (headers (leetcode--make-tabulated-headers header-names rows)))
     (with-current-buffer (get-buffer-create leetcode--buffer-name)
       (leetcode--problems-mode)
@@ -1380,8 +1344,6 @@ It will restore the layout based on current buffer's name."
       (define-key map "C" #'leetcode-solve-problem)
       (define-key map "s" #'leetcode-set-filter-regex)
       (define-key map "S" #'leetcode-set-filter-status)
-      (define-key map "f" #'leetcode-set-order)
-      (define-key map "F" #'leetcode-toggle-reverse-order)
       (define-key map "L" #'leetcode-set-prefer-language)
       (define-key map "t" #'leetcode-set-filter-tag)
       (define-key map "T" #'leetcode-toggle-tag-display)
