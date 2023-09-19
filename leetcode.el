@@ -186,6 +186,7 @@ Default is programming language.")
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
+(defvar leetcode--filter-status nil "Filter rows by status.")
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by tag.")
 (defvar leetcode--filter-difficulty nil
