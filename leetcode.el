@@ -318,7 +318,7 @@ VALUE should be the referer."
   "Make TITLE a slug title.
 Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
   (let* ((str1 (replace-regexp-in-string "[\s-]+" "-" (downcase title)))
-         (res (replace-regexp-in-string "[(),]" "" str1)))
+         (res (replace-regexp-in-string "[(),']" "" str1)))
     res))
 
 (defun leetcode--replace-in-buffer (regex to)
