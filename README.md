@@ -59,7 +59,7 @@ You can also disable IDE-like features by adding hook to `leetcode-solution-mode
 - [Spacemacs](https://github.com/syl20bnr/spacemacs):
   [leetcode-emacs-layer](https://github.com/anmoljagetia/leetcode-emacs-layer)
 
-LeetCode do not allow third party login, one workaround is restore LeetCode session from local Firefox or Chrome cookies. By default, this package will install a Python3 package called [my\_cookies](https://github.com/kaiwk/my_cookies), or you can install it manually: `pip3 install my_cookies`.
+LeetCode does not allow third party login, one workaround is to restore LeetCode session from local Firefox or Chrome cookies. By default, this package will install a Python3 package called [my\_cookies](https://github.com/kaiwk/my_cookies), or you can install it manually: `pip3 install my_cookies`.
 
 Since we are using [shr.el](https://www.emacswiki.org/emacs/HtmlRendering) to render HTML, you may also want to look at [shrface](https://github.com/chenyanming/shrface).
 
