@@ -98,7 +98,7 @@
 (defcustom leetcode-prefer-language "python3"
   "LeetCode programming language.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
-python3, ruby, rust, scala, swift."
+python3, racket, ruby, rust, scala, swift."
   :group 'leetcode
   :type 'string)
 
@@ -122,6 +122,14 @@ mysql, mssql, oraclesql."
   "When execute `leetcode', always delete other windows."
   :group 'leetcode
   :type 'boolean)
+
+(defcustom leetcode-ignore-region '("" "")
+  "If it's '(MARK1 MARK2), and none of them is \"\", ignore code between lines
+ starting with \"MARK1\" and \"MARK2\" when submitting code. If only MARK1 is
+ \"\", ignore code before MARK2. If only MARK2 is \"\", ignore code from MARK1.
+ If both are \"\", ignore nothing."
+  :group 'leetcode
+  :type '(list string string))
 
 (cl-defstruct leetcode-user
   "A LeetCode User.
@@ -194,7 +202,7 @@ Default is programming language.")
     ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql"))
   "LeetCode programming language suffixes.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
-python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
+python3, racket, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by tag.")
@@ -800,6 +808,30 @@ see: https://github.com/skeeto/emacs-aio/issues/3."
     (buffer-substring-no-properties
      (point-min) (point-max))))
 
+(defun leetcode--code-buffer-content (buf)
+  "Get code content without text properties of BUF, taking `leetcode-ignore-region'
+into consideration."
+  (let ((code (leetcode--buffer-content buf)))
+    (if (not (equal leetcode-ignore-region '("" "")))
+        (let* ((lines (string-lines code))
+               (mark-start (car leetcode-ignore-region))
+               (mark-end (car (cdr leetcode-ignore-region)))
+               (result '())
+               (ignore (equal mark-start "")))
+          (dolist (line lines result)
+            (cond ((and (not (equal mark-start "")) (string-prefix-p mark-start line))
+                   (setq ignore t)
+                   (push "" result))
+                  ((and (not (equal mark-end "")) (string-prefix-p mark-end line))
+                   (setq ignore nil)
+                   (push "" result))
+                  (ignore
+                   (push "" result))
+                  ((not ignore)
+                   (push line result))))
+          (string-join (reverse result) "\n"))
+      (code))))
+
 (defun leetcode--get-slug-title (code-buf)
   "Get slug title before try or submit with CODE-BUF.
 LeetCode require slug-title as the request parameters."
@@ -819,7 +851,7 @@ LeetCode require slug-title as the request parameters."
          (backend-id (leetcode-problem-backend-id problem))
          (testcase-buf (get-buffer (leetcode--testcase-buffer-name problem-id)))
          (result (aio-await (leetcode--api-try backend-id slug-title
-                                               (leetcode--buffer-content code-buf)
+                                               (leetcode--code-buffer-content code-buf)
                                                (leetcode--buffer-content testcase-buf)))))
     (if-let ((error-info (plist-get (car result) :error)))
         (progn
@@ -997,7 +1029,7 @@ STATUS_CODE has following possible value:
   (interactive)
   (leetcode--loading-mode t)
   (let* ((code-buf (current-buffer))
-         (code (leetcode--buffer-content code-buf))
+         (code (leetcode--code-buffer-content code-buf))
          (slug-title (leetcode--get-slug-title code-buf))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
