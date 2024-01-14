@@ -89,6 +89,17 @@ You can save solution by setting `leetcode-save-solutions`:
 (setq leetcode-directory "~/leetcode")
 ```
 
+If you want to have some code before your solution, which may make auto-completion work better but shouldn't been submitted, you can customize `leetcode-ignore-region` to ignore lines in your code. For example, suppose you have a `common.h` and some custom definations, and `leetcode-ignore-region` is set to `'("" "// start code")`, only code below `// start code` will be submitted:
+
+```c++
+#include "common.h"
+... your custom definations ...
+// start code
+
+class Solution {
+    ......
+```
+
 # Work with Org Mode
 
 `leetcode-show-problem-by-slug` will let you put to org files with a link in this format to show the question after the *leetcode* buffer is load like [elisp:(leetcode-show-problem-by-slug (leetcode--slugify-title "ZigZag Conversion"))]
