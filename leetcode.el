@@ -98,7 +98,7 @@
 (defcustom leetcode-prefer-language "python3"
   "LeetCode programming language.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
-python3, ruby, rust, scala, swift."
+python3, racket, ruby, rust, scala, swift."
   :group 'leetcode
   :type 'string)
 
@@ -202,7 +202,7 @@ Default is programming language.")
     ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql"))
   "LeetCode programming language suffixes.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
-python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
+python3, racket, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by tag.")
