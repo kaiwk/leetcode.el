@@ -440,7 +440,7 @@ OPERATION and VARS are LeetCode GraphQL parameters."
             likes
             dislikes
             content
-            sampleTestCase
+            exampleTestcases
             (topicTags slug)
             (codeSnippets langSlug code)))))
    (if vars (cons "variables" vars))))
@@ -1252,7 +1252,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
            (testcase-buf-name (leetcode--testcase-buffer-name problem-id))
            (result-buf-name (leetcode--result-buffer-name problem-id))
            (snippets (append .codeSnippets nil))
-           (testcase .sampleTestCase))
+           (testcases .exampleTestcases))
       (add-to-list 'leetcode--problem-titles title)
       (leetcode--solving-window-layout)
       (leetcode--set-lang snippets)
@@ -1286,7 +1286,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
                           (reusable-frames . visible))))
       (with-current-buffer (get-buffer-create testcase-buf-name)
         (erase-buffer)
-        (insert testcase)
+        (insert testcases)
         (set-window-buffer leetcode--testcase-window (current-buffer)))
       (with-current-buffer (get-buffer-create result-buf-name)
         (erase-buffer)
