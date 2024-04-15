@@ -1266,8 +1266,9 @@ Call `leetcode-solve-problem' on the current problem id."
 
 (defun leetcode--kill-buff-and-delete-window (buf)
   "Kill BUF and delete its window."
-  (delete-windows-on buf t)
-  (kill-buffer buf))
+  (when buf
+    (delete-windows-on buf t)
+    (kill-buffer buf)))
 
 (defun leetcode-quit ()
   "Close and delete leetcode related buffers and windows."
@@ -1282,7 +1283,8 @@ Call `leetcode-solve-problem' on the current problem id."
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--detail-buffer-name problem-id)))
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--result-buffer-name problem-id)))
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--testcase-buffer-name problem-id)))))
-        leetcode--problem-titles))
+        leetcode--problem-titles)
+  (setq leetcode--problem-titles '()))
 
 (defun leetcode--set-lang (snippets)
   "Set `leetcode--lang' based on langSlug in SNIPPETS."
