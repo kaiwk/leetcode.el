@@ -1,4 +1,4 @@
-;;; leetcode.el --- An leetcode client           -*- lexical-binding: t; no-byte-compile: t -*-
+;;; leetcode.el --- An leetcode client -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2019  Wang Kai
 
@@ -317,9 +317,9 @@ VALUE should be the referer."
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
 Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
-  (let* ((str1 (replace-regexp-in-string "[\s-]+" "-" (downcase title)))
-         (res (replace-regexp-in-string "[(),]" "" str1)))
-    res))
+  (replace-regexp-in-string
+   "[(),'%]" ""
+   (replace-regexp-in-string "[\s-]+" "-" (downcase title))))
 
 (defun leetcode--replace-in-buffer (regex to)
   "Replace string matched REGEX in `current-buffer' to TO."
