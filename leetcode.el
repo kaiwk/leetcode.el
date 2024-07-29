@@ -131,7 +131,7 @@ The object with following attributes:
 :easy     Number
 :medium   Number
 :hard     Number"
-  username solved easy medium hard)
+  username id is-premium)
 
 (cl-defstruct leetcode-problem
   "A single LeetCode problem.
@@ -143,7 +143,7 @@ The object with following attributes:
 :difficulty Number {1,2,3}
 :paid-only  Boolean {t|nil}
 :tags       List"
-  status id backend-id title acceptance
+  status id backend-id title title-slug acceptance
   difficulty paid-only tags)
 
 (cl-defstruct leetcode-problems
@@ -276,12 +276,160 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 ;; try testcase
 (defconst leetcode--url-try                 (concat leetcode--url-base "/problems/%s/interpret_solution/"))
 
+;; graphql.el doesn't support `:as' keyword, so let's use the raw graphQL string.
+(defconst leetcode--graphql-problemset-question-list "
+query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
+  problemsetQuestionList: questionList(
+    categorySlug: $categorySlug
+    limit: $limit
+    skip: $skip
+    filters: $filters
+  ) {
+    total: totalNum
+    questions: data {
+      acRate
+      difficulty
+      freqBar
+      frontendQuestionId: questionFrontendId
+      isFavor
+      paidOnly: isPaidOnly
+      status
+      title
+      titleSlug
+      topicTags {
+        name
+        id
+        slug
+      }
+      hasSolution
+      hasVideoSolution
+    }
+  }
+}")
+
+(defconst leetcode--graphql-user-status "
+query globalData {
+  userStatus {
+    userId
+    username
+    isPremium
+    activeSessionId
+    isSignedIn
+  }
+}")
+
+;; questionEditorData
+;; { "titleSlug": "two-sum" }
+;; (leetcode--graphql-payload "questionEditorData" `("titleSlug" . ,title-slug))
+(defconst leetcode--graphql-editor-data "
+query questionEditorData($titleSlug: String!) {
+  question(titleSlug: $titleSlug) {
+    questionId
+    questionFrontendId
+    codeSnippets {
+      lang
+      langSlug
+      code
+    }
+    envInfo
+    enableRunCode
+    hasFrontendPreview
+    frontendPreviews
+  }
+}")
+
+;; questionContent
+;; { "titleSlug": "two-sum" }
+;; (leetcode--graphql-payload "questionContent " `("titleSlug" . ,title-slug))
+(defconst leetcode--graphql-question-content "
+query questionContent($titleSlug: String!) {
+  question(titleSlug: $titleSlug) {
+    content
+    mysqlSchemas
+    dataSchemas
+  }
+}")
+
+
+;; questionHints
+;; { "titleSlug": "two-sum" }
+;; (leetcode--graphql-payload "questionHints" `("titleSlug" . ,title-slug))
+(defconst leetcode--graphql-hints "
+query questionHints($titleSlug: String!) {
+  question(titleSlug: $titleSlug) {
+    hints
+  }
+}")
+
+
+(defun leetcode--graphql-payload (operation query &optional vars)
+  "Construct GraphQL request payload with OPERATION, QUERY or maybe VARS."
+  (json-encode
+   (let ((ret `(("operationName" . ,operation)
+                ("query" . ,query))))
+     (if vars `(,@ret ("variables" . ,vars)) ret))))
+
+(aio-defun leetcode--fetch-user-status ()
+  "Fetch user status via `leetcode--graphql-user-status'."
+  (interactive)
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers `(,leetcode--User-Agent ,leetcode--Content-Type))
+         (url-request-data (leetcode--graphql-payload "globalData" leetcode--graphql-user-status))
+         (response (aio-await (aio-url-retrieve  leetcode--url-graphql)))
+         (status (car response))
+         (buf (cdr response)))
+    (if-let ((error (plist-get status :error)))
+        (switch-to-buffer buf)
+      (with-current-buffer buf
+        (goto-char url-http-end-of-headers)
+        (let-alist (json-read)
+          (setf (leetcode-user-id leetcode--user) .data.userStatus.userId)
+          (setf (leetcode-user-username leetcode--user) .data.userStatus.username)
+          (setf (leetcode-user-is-premium leetcode--user) .data.userStatus.isPremium))))))
+
+(aio-defun leetcode--fetch-all-problems ()
+  "Fetch user status via `leetcode--graphql-problemset-question-list'."
+  (interactive)
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers `(,leetcode--User-Agent ,leetcode--Content-Type))
+         (url-request-data (leetcode--graphql-payload
+                            "problemsetQuestionList"
+                            leetcode--graphql-problemset-question-list
+                            '(("categorySlug" . "all-code-essentials")
+                              ("skip" . 0)
+                              ("limit" . 4000) ; TODO pagination
+                              ("filters" . #s(hash-table)))))
+         (response (aio-await (aio-url-retrieve leetcode--url-graphql)))
+         (response-status (car response))
+         (buf (cdr response)))
+    (if-let ((error (plist-get response-status :error)))
+        (switch-to-buffer buf)
+      (let-alist (with-current-buffer buf (goto-char url-http-end-of-headers) (json-read))
+        ;; problem list
+        (setf (leetcode-problems-num leetcode--problems) .data.problemsetQuestionList.total
+              (leetcode-problems-tag leetcode--problems) "all")
+        (let (problems)
+          (dotimes (i .data.problemsetQuestionList.total)
+            (let-alist (aref .data.problemsetQuestionList.questions i)
+              (push (make-leetcode-problem
+                     :status     .status
+                     :id         .frontendQuestionId
+                     :title      .title
+                     :title-slug .titleSlug
+                     :acceptance (format "%.1f%%" .acRate)
+                     :difficulty .difficulty
+                     :paid-only  (eq .paidOnly :json-true)
+                     :tags       (seq-reduce (lambda (tags tag)
+                                               (let-alist tag
+                                                 (push .slug tags)))
+                                             .topicTags '()))
+                    problems)
+              (setq leetcode--all-tags (append leetcode--all-tags (leetcode-problem-tags (car problems))))))
+          (setf (leetcode-problems-problems leetcode--problems) (nreverse problems))
+          ;; problem tags
+          (delete-dups leetcode--all-tags))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun leetcode--to-list (vec)
-  "Convert VEC to list."
-  (append vec '()))
 
 (defun leetcode--referer (value)
   "It will return an alist as the HTTP Referer Header.
@@ -300,7 +448,7 @@ VALUE should be the referer."
 (aio-defun leetcode--csrf-token ()
   "Return csrf token."
   (unless (leetcode--maybe-csrf-token)
-    (aio-await (aio-url-retrieve leetcode--url-login)))
+    (aio-await (leetcode--login)))
   (leetcode--maybe-csrf-token))
 
 (defun leetcode--login-p ()
@@ -335,94 +483,62 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
   (concat leetcode--url-base "/problems/" (leetcode--slugify-title title)))
 
 (defun leetcode--stringify-difficulty (difficulty)
-  "Stringify DIFFICULTY level (number) to 'easy', 'medium' or 'hard'."
-  (let ((easy-tag "easy")
-        (medium-tag "medium")
-        (hard-tag "hard"))
-    (cond
-     ((eq 1 difficulty)
-      (leetcode--add-font-lock easy-tag 'leetcode-easy-face))
-     ((eq 2 difficulty)
-      (leetcode--add-font-lock medium-tag 'leetcode-medium-face))
-     ((eq 3 difficulty)
-      (leetcode--add-font-lock hard-tag 'leetcode-hard-face)))))
+  "Add font-lock to DIFFICULTY."
+  (pcase difficulty
+    ("Easy" (leetcode--add-font-lock "Easy" 'leetcode-easy-face))
+    ("Medium" (leetcode--add-font-lock "Medium" 'leetcode-medium-face))
+    ("Hard" (leetcode--add-font-lock "Hard" 'leetcode-hard-face))))
 
 (defun leetcode--add-font-lock (str face)
+  "Add font-lock FACE to STR."
   (prog1 str
-    (put-text-property
-     0 (length str)
-     'font-lock-face face str)))
+    (put-text-property 0 (length str) 'font-lock-face face str)))
 
 (defun leetcode--detail-buffer-name (problem-id)
-  "Detail buffer name."
+  "Detail buffer name with PROBLEM-ID."
   (format "*leetcode-detail-%s*" problem-id))
 
 (defun leetcode--testcase-buffer-name (problem-id)
-  "Testcase buffer name."
+  "Testcase buffer name with PROBLEM-ID."
   (format "*leetcode-testcase-%s*" problem-id))
 
 (defun leetcode--result-buffer-name (problem-id)
-  "Result buffer name."
+  "Result buffer name with PROBLEM-ID."
   (format "*leetcode-result-%s*" problem-id))
 
 (defun leetcode--maybe-focus ()
   (if leetcode-focus (delete-other-windows)))
 
+(defun leetcode--cookie-get ()
+  "Get leetcode session with `my_cookies'. You can install it with pip."
+  (let* ((my-cookies (executable-find "my_cookies"))
+         (my-cookies-output (shell-command-to-string "pipx run my_cookies"))
+         (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
+                                   (split-string my-cookies-output "\n")))
+         (cookies-pairs (seq-map (lambda (s) (split-string s)) cookies-list))
+         (session (cadr (assoc leetcode--cookie-session cookies-pairs)))
+         (csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
+    `(:csrftoken ,csrftoken :session ,session)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; LeetCode API ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (aio-defun leetcode--login ()
-  "Steal LeetCode login session from local browser.
-It also cleans LeetCode cookies in `url-cookie-file'."
+  "We are not login actually, we are retrieving LeetCode login session
+from local browser. It also cleans LeetCode cookies in `url-cookie-file'."
+  (interactive)
   (leetcode--loading-mode t)
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
-  (aio-await (leetcode--csrf-token))    ;knock knock, whisper me the mysterious information
-  (let* ((my-cookies (executable-find "my_cookies"))
-         (my-cookies-output (shell-command-to-string my-cookies))
-         (cookies-list (seq-filter
-                        (lambda (s) (not (string-empty-p s)))
-                        (split-string my-cookies-output "\n")))
-         (cookies-pairs (seq-map
-                         (lambda (s) (split-string s))
-                         cookies-list))
-         (leetcode-session (cadr (assoc leetcode--cookie-session cookies-pairs)))
-         (leetcode-csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
-    (leetcode--debug "login session: %s" leetcode-session)
-    (leetcode--debug "login csrftoken: %s" leetcode-csrftoken)
-    (url-cookie-store leetcode--cookie-session leetcode-session nil leetcode--domain "/" t)
-    (url-cookie-store "csrftoken" leetcode-csrftoken nil leetcode--domain "/" t))
+  (let* ((leetcode-cookie (leetcode--cookie-get))
+         (csrftoken (plist-get leetcode-cookie :csrftoken))
+         (session (plist-get leetcode-cookie :session)))
+    (message "login session: %s" session)
+    (message "login csrftoken: %s" csrftoken)
+    (url-cookie-store leetcode--cookie-session session nil leetcode--domain "/" t)
+    (url-cookie-store "csrftoken" csrftoken nil leetcode--domain "/" t)
+    ;; After login, we should have our user data already.
+    (aio-await (leetcode--fetch-user-status)))
   (leetcode--loading-mode -1))
 
-(aio-defun leetcode--api-fetch-all-tags ()
-  "Fetch all problems' tags."
-  (let* ((url-request-method "GET")
-         (url-request-extra-headers
-          `(,leetcode--User-Agent
-            ,leetcode--X-Requested-With
-            ,(leetcode--referer leetcode--url-login)))
-         (result (aio-await (aio-url-retrieve leetcode--url-all-tags))))
-    (with-current-buffer (cdr result)
-      (goto-char url-http-end-of-headers)
-      (json-read))))
-
-(aio-defun leetcode--api-fetch-user-and-problems ()
-  "Fetch user and problems info."
-  (if leetcode--loading-mode
-      (message "LeetCode has been refreshing...")
-    (leetcode--loading-mode t)
-    (let ((url-request-method "GET")
-          (url-request-extra-headers
-           `(,leetcode--User-Agent
-             ,leetcode--X-Requested-With
-             ,(leetcode--referer leetcode--url-login)))
-          (result (aio-await (aio-url-retrieve leetcode--url-all-problems))))
-      (leetcode--loading-mode -1)
-      (if-let ((error-info (plist-get (car result) :error)))
-          (progn
-            (switch-to-buffer (cdr result))
-            (leetcode--warn "LeetCode fetch user and problems failed: %S" error-info))
-        (with-current-buffer (cdr result)
-          (goto-char url-http-end-of-headers)
-          (json-read))))))
 
 (defun leetcode--problem-graphql-params (operation &optional vars)
   "Construct a GraphQL parameter.
@@ -533,96 +649,29 @@ nil."
           (if (equal (alist-get 'state submission-res) "SUCCESS")
               submission-res))))))
 
-(defun leetcode--set-user-and-problems (user-and-problems)
-  "Set `leetcode--user' and `leetcode--problems'.
-If user isn't login, only `leetcode--problems' will be set.
-USER-AND-PROBLEMS is an alist comes from
-`leetcode--url-all-problems'."
-  ;; user
-  (let-alist user-and-problems
-    (setf (leetcode-user-username leetcode--user) .user_name
-          (leetcode-user-solved leetcode--user) .num_solved
-          (leetcode-user-easy leetcode--user) .ac_easy
-          (leetcode-user-medium leetcode--user) .ac_medium
-          (leetcode-user-hard leetcode--user) .ac_hard)
-    (leetcode--debug "set user: %s, solved %s in %s problems" .user_name .num_solved .num_total)
-    ;; problem list
-    (setf (leetcode-problems-num leetcode--problems) .num_total
-          (leetcode-problems-tag leetcode--problems) "all")
-    (setf (leetcode-problems-problems leetcode--problems)
-          (let* ((len .num_total)
-                 (problems nil))
-            (dotimes (i len problems)
-              (let-alist (aref .stat_status_pairs i)
-                (leetcode--debug "frontend_question_id: %s, question_id: %s, title: %s"
-                                 .stat.frontend_question_id .stat.question_id .stat.question__title)
-                (push (make-leetcode-problem
-                       :status .status
-                       :id .stat.frontend_question_id
-                       :backend-id .stat.question_id
-                       :title .stat.question__title
-                       :acceptance (format
-                                    "%.1f%%"
-                                    (* 100
-                                       (/ (float .stat.total_acs)
-                                          .stat.total_submitted)))
-                       :difficulty .difficulty.level
-                       :paid-only (eq .paid_only t))
-                      problems)))))))
-
-(defun leetcode--set-tags (all-tags)
-  "Set `leetcode--all-tags' and `leetcode--problems' with ALL-TAGS."
-  (let ((tags-table (make-hash-table :size 2000)))
-    (let-alist all-tags
-      (dolist (topic (leetcode--to-list .topics))
-        (let-alist topic
-          ;; set leetcode--all-tags
-          (unless (member .slug leetcode--all-tags)
-            (push .slug leetcode--all-tags))
-          ;; tags-table cache with backend-id
-          (dolist (id (leetcode--to-list .questions))
-            (let ((tags (gethash id tags-table)))
-              (setf (gethash id tags-table) (cons .slug tags)))))))
-    ;; set problems tags with tags-table
-    (dolist (problem (leetcode-problems-problems leetcode--problems))
-      (let ((backend-id (leetcode-problem-backend-id problem)))
-        (setf (leetcode-problem-tags problem) (gethash backend-id tags-table))))))
-
 (defun leetcode--problems-rows ()
   "Generate tabulated list rows from `leetcode--problems'.
 Return a list of rows, each row is a vector:
 \([<checkmark> <position> <title> <acceptance> <difficulty>] ...)"
   (let ((problems (leetcode-problems-problems leetcode--problems))
-        (easy-tag "easy")
-        (medium-tag "medium")
-        (hard-tag "hard")
         rows)
     (dolist (p problems (reverse rows))
-      (if (or leetcode--display-paid
-              (not (leetcode-problem-paid-only p)))
-          (setq rows
-                (cons
-                 (vector
-                  ;; status
-                  (if (equal (leetcode-problem-status p) "ac")
-                      (leetcode--add-font-lock leetcode--checkmark 'leetcode-checkmark-face)
-                    " ")
-                  ;; id
-                  (number-to-string (leetcode-problem-id p))
-                  ;; title
-                  (concat
-                   (leetcode-problem-title p)
-                   " "
-                   (if (eq (leetcode-problem-paid-only p) t)
-                       (leetcode--add-font-lock leetcode--paid 'leetcode-paid-face)
-                     " "))
-                  ;; acceptance
-                  (leetcode-problem-acceptance p)
-                  ;; difficulty
-                  (leetcode--stringify-difficulty (leetcode-problem-difficulty p))
-                  ;; tags
-                  (if leetcode--display-tags (string-join (leetcode-problem-tags p) ", ") ""))
-                 rows))))))
+      (if (or leetcode--display-paid (not (leetcode-problem-paid-only p)))
+          (let* ((p-status (if (equal (leetcode-problem-status p) "ac")
+                               (leetcode--add-font-lock leetcode--checkmark 'leetcode-checkmark-face)
+                             " "))
+                 (p-id (leetcode-problem-id p))
+                 (p-title (concat
+                           (leetcode-problem-title p)
+                           " "
+                           (if (eq (leetcode-problem-paid-only p) t)
+                               (leetcode--add-font-lock leetcode--paid 'leetcode-paid-face)
+                             " ")))
+                 (p-acceptance (leetcode-problem-acceptance p))
+                 (p-difficulty (leetcode--stringify-difficulty (leetcode-problem-difficulty p)))
+                 (p-tags (if leetcode--display-tags (string-join (leetcode-problem-tags p) ", ") ""))
+                 (single-row (vector p-status p-id p-title p-acceptance p-difficulty p-tags)))
+            (setq rows (cons single-row rows)))))))
 
 (defun leetcode--row-tags (row)
   "Get tags from ROW."
@@ -743,12 +792,8 @@ row."
 (aio-defun leetcode-refresh-fetch ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
-  (if-let ((users-and-problems (aio-await (leetcode--api-fetch-user-and-problems)))
-           (all-tags (aio-await (leetcode--api-fetch-all-tags))))
-      (progn
-        (leetcode--set-user-and-problems users-and-problems)
-        (leetcode--set-tags all-tags))
-    (leetcode--warn "LeetCode parse user and problems failed"))
+  (aio-await (leetcode--fetch-user-status))
+  (aio-await (leetcode--fetch-all-problems))
   (setq leetcode--display-tags leetcode-prefer-tag-display)
   (leetcode-reset-filter)
   (leetcode-refresh))
