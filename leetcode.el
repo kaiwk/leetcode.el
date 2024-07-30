@@ -126,11 +126,9 @@ mysql, mssql, oraclesql."
 (cl-defstruct leetcode-user
   "A LeetCode User.
 The object with following attributes:
-:username String
-:solved   Number
-:easy     Number
-:medium   Number
-:hard     Number"
+:username   String
+:id         Int
+:is-premium Boolean {t|nil}"
   username id is-premium)
 
 (cl-defstruct leetcode-problem
@@ -139,12 +137,15 @@ The object with following attributes:
 :id         Number
 :backend-id Number
 :title      String
+:title-slug String
 :acceptance String
 :difficulty Number {1,2,3}
 :paid-only  Boolean {t|nil}
+:likes      Boolean {t|nil}
+:dislikes   Boolean {t|nil}
 :tags       List"
   status id backend-id title title-slug acceptance
-  difficulty paid-only tags)
+  difficulty paid-only likes dislikes tags)
 
 (cl-defstruct leetcode-problems
   "All LeetCode problems, the problems can filtered by tag.
@@ -362,6 +363,24 @@ query questionHints($titleSlug: String!) {
 }")
 
 
+;; questionTitle
+;; { "titleSlug": "two-sum" }
+(defconst leetcode--graphql-question-title "
+query questionTitle($titleSlug: String!) {
+  question(titleSlug: $titleSlug) {
+    questionId
+    questionFrontendId
+    title
+    titleSlug
+    isPaidOnly
+    difficulty
+    likes
+    dislikes
+    categoryTitle
+  }
+}")
+
+
 (defun leetcode--graphql-payload (operation query &optional vars)
   "Construct GraphQL request payload with OPERATION, QUERY or maybe VARS."
   (json-encode
@@ -428,6 +447,23 @@ query questionHints($titleSlug: String!) {
           (setf (leetcode-problems-problems leetcode--problems) (nreverse problems))
           ;; problem tags
           (delete-dups leetcode--all-tags))))))
+
+(aio-defun leetcode--fetch-question-content (title-slug)
+  "Fetch question content by TITLE-SLUG."
+  (interactive)
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers `(,leetcode--User-Agent ,leetcode--Content-Type))
+         (url-request-data (leetcode--graphql-payload
+                            "questionContent"
+                            leetcode--graphql-question-content
+                            `(("titleSlug" . ,title-slug))))
+         (response (aio-await (aio-url-retrieve leetcode--url-graphql)))
+         (response-status (car response))
+         (buf (cdr response)))
+    (if-let ((error (plist-get response-status :error)))
+        (switch-to-buffer buf)
+      ;; TODO(wangkai)
+      )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1267,9 +1303,7 @@ Call `leetcode-solve-problem' on the current problem id."
 (defun leetcode--get-problem (slug-title)
   "Get problem from `leetcode--problems' by SLUG-TITLE."
   (seq-find (lambda (p)
-              (equal slug-title
-                     (leetcode--slugify-title
-                      (leetcode-problem-title p))))
+              (equal slug-title (leetcode-problem-title-slug p)))
             (leetcode-problems-problems leetcode--problems)))
 
 (defun leetcode--get-problem-by-id (id)
