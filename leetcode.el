@@ -497,6 +497,54 @@ of QUERY-NAME."
 (defalias 'leetcode--fetch-question-testcases (symbol-function 'leetcode--fetch-console-panel-config))
 (defalias 'leetcode--fetch-question-snippets (symbol-function 'leetcode--fetch-question-editor-data))
 
+
+(defun leetcode--testcase-buffer-data (problem-id)
+  ;; TODO
+  )
+
+(defun leetcode--code-buffer-data (problem-id)
+  ;; TODO
+  )
+
+(aio-defun leetcode--interpret-solution (problem)
+  "Fetch PROBLEM interpret_id."
+  (let* ((title-slug (leetcode-problem-title-slug problem))
+         (problem-id (leetcode-problem-id problem))
+         (payload (json-encode `((data_input . ,(leetcode--testcase-buffer-data problem-id))
+                                 (lang . ,leetcode--lang)
+                                 (question_id . ,problem-id)
+                                 (typed_code . ,(leetcode--code-buffer-data problem-id)))))
+         (url-request-method "POST")
+         (url-request-extra-headers `(,leetcode--User-Agent ,leetcode--Content-Type))
+         (url-request-data payload)
+         (response (aio-await (aio-url-retrieve (format leetcode--url-try title-slug))))
+         (response-status (car response))
+         (response-buffer (cdr response)))
+    (if-let ((error-info (plist-get response-status :error)))
+        (progn
+          (switch-to-buffer response-buffer)
+          (leetcode--warn "LeetCode interpret problem ERROR: %S" error-info))
+      (let-alist (with-current-buffer response-buffer (goto-char url-http-end-of-headers) (json-read))
+        .interpret_id))))
+
+(aio-defun leetcode--check-submission (interpret-id)
+  "Polling submission by INTERPRET-ID."
+  (let* ((url-request-method "GET")
+         (url-request-extra-headers `(,leetcode--User-Agent ,leetcode--Content-Type))
+         (response (aio-await (aio-url-retrieve (format leetcode--url-check-submission interpret-id))))
+         (response-status (car response))
+         (response-buffer (cdr response)))
+    (if-let ((error-info (plist-get response-status :error)))
+        (progn
+          (switch-to-buffer response-buffer)
+          (leetcode--warn "LeetCode check submission ERROR: %S" error-info))
+      (let-alist (with-current-buffer response-buffer (goto-char url-http-end-of-headers) (json-read))
+        (pcase .state
+          ("PENDING" (aio-await (leetcode--check-submission interpret-id)))
+          ("SUCCESS"
+           ;; parse the result
+           ))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun leetcode--referer (value)
@@ -1316,7 +1364,7 @@ Call `leetcode-solve-problem' on the current problem id."
          (slug-title (leetcode--slugify-title title))
          (title-with-suffix (concat slug-title suffix)))
     (if leetcode-save-solutions
-        (format "%04d_%s" (leetcode--get-problem-id slug-title) title-with-suffix)
+        (format "%s_%s" (leetcode--get-problem-id slug-title) title-with-suffix)
       title-with-suffix)))
 
 (defun leetcode--get-code-buffer (buf-name)
@@ -1402,10 +1450,11 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
     (with-current-buffer (get-buffer-create testcase-buf-name)
       (erase-buffer)
       (insert
-       (s-join "\n\n" (seq-map (lambda (t)
-                                 (format "%s\n%s" (leetcode-testcase-input t)
-                                         (leetcode-testcase-expected t)))
-                               testcases)))
+       (s-join "\n" (seq-map (lambda (testcase)
+                               (format "%s\n%s"
+                                       (leetcode-testcase-input testcase)
+                                       (leetcode-testcase-expected testcase)))
+                             testcases)))
       (set-window-buffer leetcode--testcase-window (current-buffer)))
     (with-current-buffer (get-buffer-create result-buf-name)
       (erase-buffer)
