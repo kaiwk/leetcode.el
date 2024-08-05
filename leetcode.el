@@ -568,7 +568,7 @@ of QUERY-NAME."
                  (insert (format "%s\n" (aref .expected_code_answer i))))
                (insert "\n")
                ;; Std output
-               (when (seq-find (lambda (s) (not (string= s ""))) .std_output_list)
+               (when (seq-find (lambda (s) (not (string-empty-p s))) .std_output_list)
                  (insert "Std Output:\n")
                  (dotimes (i (length .std_output_list))
                    (when (aref .std_output_list i)
@@ -662,37 +662,30 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
   (format "*leetcode-result-%s*" problem-id))
 
 (defun leetcode--maybe-focus ()
+  "Delete other windows, keep only *leetcode* buffer."
   (if leetcode-focus (delete-other-windows)))
 
 (defun leetcode--cookie-get ()
   "Get leetcode session with `my_cookies'. You can install it with pip."
   (let* ((my-cookies (executable-find "my_cookies"))
-         (my-cookies-output (shell-command-to-string "pipx run my_cookies"))
+         (my-cookies-output (shell-command-to-string "my_cookies"))
          (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
-                                   (split-string my-cookies-output "\n")))
-         (cookies-pairs (seq-map (lambda (s) (split-string s)) cookies-list))
-         (session (cadr (assoc leetcode--cookie-session cookies-pairs)))
-         (csrftoken (cadr (assoc "csrftoken" cookies-pairs))))
-    `(:csrftoken ,csrftoken :session ,session)))
+                                   (s-split "\n" my-cookies-output 'OMIT-NULLS)))
+         (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
+    cookies-pairs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; LeetCode API ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (aio-defun leetcode--login ()
   "We are not login actually, we are retrieving LeetCode login session
 from local browser. It also cleans LeetCode cookies in `url-cookie-file'."
-  (interactive)
-  (leetcode--loading-mode t)
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
-  (let* ((leetcode-cookie (leetcode--cookie-get))
-         (csrftoken (plist-get leetcode-cookie :csrftoken))
-         (session (plist-get leetcode-cookie :session)))
-    (message "login session: %s" session)
-    (message "login csrftoken: %s" csrftoken)
-    (url-cookie-store leetcode--cookie-session session nil leetcode--domain "/" t)
-    (url-cookie-store leetcode--cookie-csrftoken csrftoken nil leetcode--domain "/" t)
-    ;; After login, we should have our user data already.
-    (aio-await (leetcode--fetch-user-status)))
-  (leetcode--loading-mode -1))
+  (let* ((leetcode-cookie (leetcode--cookie-get)))
+    (cl-loop for (key value) in leetcode-cookie
+             do (url-cookie-store key value nil leetcode--domain "/" t)))
+  ;; After login, we should have our user data already.
+  (message "LeetCode fetching user data...")
+  (aio-await (leetcode--fetch-user-status)))
 
 
 (aio-defun leetcode--api-try (problem-id slug-title code testcase)
@@ -812,7 +805,7 @@ Return a list of rows, each row is a vector:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; User Command ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun leetcode-reset-filter ()
+(defun leetcode-reset-filter-and-refresh ()
   "Reset filter."
   (interactive)
   (setq leetcode--filter-regex nil)
@@ -901,30 +894,23 @@ row."
 (aio-defun leetcode-refresh-fetch ()
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
-  (aio-await (leetcode--fetch-user-status))
+  (message "LeetCode refreshing question list...")
   (aio-await (leetcode--fetch-question-list "all-code-essentials" 0 4000 #s(hash-table))) ; TODO pagination?
   (setq leetcode--display-tags leetcode-prefer-tag-display)
-  (leetcode-reset-filter)
-  (leetcode-refresh))
+  (leetcode-reset-filter-and-refresh))
 
-(aio-defun leetcode--async ()
-  "Show leetcode problems buffer."
-  (if (get-buffer leetcode--buffer-name)
-      (switch-to-buffer leetcode--buffer-name)
-    (unless (leetcode--login-p)
-      (aio-await (leetcode--login)))
-    (aio-await (leetcode-refresh-fetch))
-    (switch-to-buffer leetcode--buffer-name))
-  (leetcode--maybe-focus))
-
-;;;###autoload
-(defun leetcode ()
-  "A wrapper for `leetcode--async', because emacs-aio can not be autoloaded.
-see: https://github.com/skeeto/emacs-aio/issues/3."
+;;;###autoload(autoload 'leetcode "leetcode" nil t)
+(aio-defun leetcode ()
+  "Start Leetcode."
   (interactive)
-  (if (leetcode--check-deps)
-      (leetcode--async)
-    (message "installing leetcode dependencies...")))
+  (when (leetcode--check-deps)
+    (if (get-buffer leetcode--buffer-name)
+        (switch-to-buffer leetcode--buffer-name)
+      (unless (leetcode--login-p)
+        (aio-await (leetcode--login)))
+      (aio-await (leetcode-refresh-fetch))
+      (switch-to-buffer leetcode--buffer-name))
+    (leetcode--maybe-focus)))
 
 ;;;###autoload(autoload 'leetcode-daily "leetcode" nil t)
 (aio-defun leetcode-daily ()
@@ -1443,7 +1429,7 @@ It will restore the layout based on current buffer's name."
       (define-key map "d" #'leetcode-set-filter-difficulty)
       (define-key map "g" #'leetcode-refresh)
       (define-key map "G" #'leetcode-refresh-fetch)
-      (define-key map "r" #'leetcode-reset-filter)
+      (define-key map "r" #'leetcode-reset-filter-and-refresh)
       (define-key map "q" #'quit-window)))
   "Keymap for `leetcode--problems-mode'.")
 
