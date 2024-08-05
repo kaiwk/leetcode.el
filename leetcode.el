@@ -907,6 +907,7 @@ row."
     (if (get-buffer leetcode--buffer-name)
         (switch-to-buffer leetcode--buffer-name)
       (unless (leetcode--login-p)
+        (aio-await (leetcode--login)) ; It's weird that somehow we have to login twice to be real login...
         (aio-await (leetcode--login)))
       (aio-await (leetcode-refresh-fetch))
       (switch-to-buffer leetcode--buffer-name))
