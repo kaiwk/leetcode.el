@@ -5,7 +5,7 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "26.1") (s "1.13.0") (dash "2.16.0") (graphql "0.1.1") (spinner "1.7.3") (aio "1.0") (log4e "0.3.3"))
+;; Package-Requires: ((emacs "26.1") (s "1.13.0") (dash "2.16.0") (aio "1.0") (log4e "0.3.3"))
 ;; Version: 0.1.27
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -45,9 +45,7 @@
 
 (require 'dash)
 (require 's)
-(require 'graphql)                      ; Some requests of LeetCode use GraphQL, TODO: remove it
 (require 'aio)
-(require 'spinner)
 (require 'log4e)
 
 (log4e:deflogger "leetcode" "%t [%l] %m" "%H:%M:%S" '((fatal . "fatal")
@@ -831,8 +829,7 @@ row."
              (number-sequence 0 (1- (length rows)))
              rows))
       (tabulated-list-init-header)
-      (tabulated-list-print t)
-      (leetcode--loading-mode -1))))
+      (tabulated-list-print t))))
 
 (aio-defun leetcode-refresh-fetch ()
   "Refresh problems and update `tabulated-list-entries'."
@@ -1426,23 +1423,6 @@ It will restore the layout based on current buffer's name."
 
 (add-hook 'leetcode--problem-detail-mode-hook
           (lambda () (leetcode--set-evil-local-map leetcode--problem-detail-mode-map)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Loading Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; Use spinner.el to show progress indicator
-(defvar leetcode--spinner (spinner-create 'progress-bar-filled)
-  "Progress indicator to show request progress.")
-(defconst leetcode--loading-lighter
-  '(" [LeetCode" (:eval (spinner-print leetcode--spinner)) "]"))
-
-(define-minor-mode leetcode--loading-mode
-  "Minor mode to showing leetcode loading status."
-  :require 'leetcode
-  :lighter leetcode--loading-lighter
-  :group 'leetcode
-  (if leetcode--loading-mode
-      (spinner-start leetcode--spinner)
-    (spinner-stop leetcode--spinner)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Solution Mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
