@@ -130,12 +130,6 @@ The object with following attributes:
 :is-premium Boolean {t|nil}"
   username id is-premium)
 
-(cl-defstruct leetcode-testcase
-  "A testcases.
-:input    String
-:expected String"
-  input expected)
-
 (cl-defstruct leetcode-snippet
   "A code snippet.
 :lang String
@@ -164,7 +158,7 @@ For example: :lang 'C++' and :lang-slug 'cpp', :lang 'C#' and
 :tags       List
 :content    String
 :snippets   List {leetcode-snippet}
-:testcases  List {leetcode-testcase}
+:testcases  List {String}
 
 'id' is frontend id in LeetCode. We almost always use frontend id
 in 'leetcode.el'."
@@ -586,12 +580,7 @@ of QUERY-NAME."
 
 (leetcode--define-graphql console-panel-config (title-slug)
   (let ((id .data.question.questionFrontendId)
-        (testcases (seq-map (lambda (s)
-                              (let ((splitted (s-split "\n" s 'OMIT-NULLS)))
-                                (make-leetcode-testcase
-                                 :input (car splitted)
-                                 :expected (cadr splitted))))
-                            .data.question.exampleTestcaseList))
+        (testcases (append .data.question.exampleTestcaseList nil))
         (problem (leetcode--get-problem title-slug)))
     (if problem
         (progn
@@ -625,9 +614,10 @@ of QUERY-NAME."
   "Fetch PROBLEM interpret_id."
   (let* ((title-slug (leetcode-problem-title-slug problem))
          (problem-id (leetcode-problem-id problem))
+         (backend-id (leetcode-problem-backend-id problem))
          (payload (json-encode `((data_input . ,(leetcode--testcase-buffer-data problem-id))
                                  (lang . ,leetcode--lang)
-                                 (question_id . ,problem-id)
+                                 (question_id . ,backend-id)
                                  (typed_code . ,(leetcode--code-buffer-data)))))
          (url-request-method "POST")
          (url-request-extra-headers `(,@(aio-await (leetcode--common-extra-headers))
@@ -1315,12 +1305,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
     ;; Setup testcase buffer
     (with-current-buffer (get-buffer-create testcase-buf-name)
       (erase-buffer)
-      (insert
-       (s-join "\n" (seq-map (lambda (testcase)
-                               (format "%s\n%s"
-                                       (leetcode-testcase-input testcase)
-                                       (leetcode-testcase-expected testcase)))
-                             testcases)))
+      (insert (s-join "\n" testcases))
       (set-window-buffer leetcode--testcase-window (current-buffer)))
     (with-current-buffer (get-buffer-create result-buf-name)
       (erase-buffer)
