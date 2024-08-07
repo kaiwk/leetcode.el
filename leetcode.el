@@ -221,7 +221,7 @@ python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 (defvar leetcode--filter-difficulty nil
   "Filter rows by difficulty, it can be \"easy\", \"medium\" and \"hard\".")
 
-(defconst leetcode--all-difficulties '("easy" "medium" "hard"))
+(defconst leetcode--all-difficulties '("Easy" "Medium" "Hard"))
 (defconst leetcode--paid "•" "Paid mark.")
 (defconst leetcode--checkmark "✓" "Checkmark for accepted problem.")
 (defconst leetcode--buffer-name             "*leetcode*")
@@ -376,14 +376,30 @@ query consolePanelConfig($titleSlug: String!) {
 VALUE should be the referer."
   (cons "Referer" value))
 
-(defun leetcode--maybe-csrf-token ()
-  "Return csrf token if it exists, otherwise return nil."
+(defun leetcode--cookie-get-all ()
+  "Get leetcode session with `my_cookies'. You can install it with pip."
+  (let* ((my-cookies (executable-find "my_cookies"))
+         (my-cookies-output (shell-command-to-string "my_cookies"))
+         (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
+                                   (s-split "\n" my-cookies-output 'OMIT-NULLS)))
+         (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
+    cookies-pairs))
+
+(defun leetcode--cookie-get (cookie-key)
+  "Get LeetCode cookie value by COOKIE-KEY."
   (if-let ((cookie (seq-find
                     (lambda (item)
-                      (string= (aref item 1)
-                               leetcode--cookie-csrftoken))
+                      (string= (aref item 1) cookie-key))
                     (url-cookie-retrieve leetcode--domain "/" t))))
       (aref cookie 2)))
+
+(defun leetcode--maybe-csrf-token ()
+  "Return LeetCode CSRF token if it exists, otherwise return nil."
+  (leetcode--cookie-get leetcode--cookie-csrftoken))
+
+(defun leetcode--maybe-session ()
+  "Return LeetCode session if it exists, otherwise return nil."
+  (leetcode--cookie-get leetcode--cookie-session))
 
 (aio-defun leetcode--csrf-token ()
   "Return csrf token."
@@ -397,11 +413,7 @@ VALUE should be the referer."
   (let ((username (leetcode-user-username leetcode--user)))
     (and username
          (not (string-empty-p username))
-         (seq-find
-          (lambda (item)
-            (string= (aref item 1)
-                     leetcode--cookie-session))
-          (url-cookie-retrieve leetcode--domain "/" t)))))
+         (leetcode--maybe-session))))
 
 (defun leetcode--slugify-title (title)
   "Make TITLE a slug title.
@@ -450,15 +462,6 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
 (defun leetcode--maybe-focus ()
   "Delete other windows, keep only *leetcode* buffer."
   (if leetcode-focus (delete-other-windows)))
-
-(defun leetcode--cookie-get ()
-  "Get leetcode session with `my_cookies'. You can install it with pip."
-  (let* ((my-cookies (executable-find "my_cookies"))
-         (my-cookies-output (shell-command-to-string "my_cookies"))
-         (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
-                                   (s-split "\n" my-cookies-output 'OMIT-NULLS)))
-         (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
-    cookies-pairs))
 
 (defun leetcode--parse-buffer (buffer)
   "Parse BUFFER content from json to alist."
@@ -700,7 +703,7 @@ submission status."
   "We are not login actually, we are retrieving LeetCode login session
 from local browser. It also cleans LeetCode cookies in `url-cookie-file'."
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
-  (let* ((leetcode-cookie (leetcode--cookie-get)))
+  (let* ((leetcode-cookie (leetcode--cookie-get-all)))
     (cl-loop for (key value) in leetcode-cookie
              do (url-cookie-store key value nil leetcode--domain "/" t)))
   ;; After login, we should have our user data already.
