@@ -490,7 +490,7 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
 LeetCode require slug-title as the request parameters."
   (with-current-buffer code-buf
     (if leetcode-save-solutions
-        (file-name-base (cadr (split-string (buffer-name) "_")))
+        (file-name-base (cadr (s-split "_" (buffer-name))))
       (file-name-base (buffer-name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; LeetCode API ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -610,6 +610,31 @@ of QUERY-NAME."
 (defalias 'leetcode--fetch-question-testcases (symbol-function 'leetcode--fetch-console-panel-config))
 (defalias 'leetcode--fetch-question-snippets (symbol-function 'leetcode--fetch-question-editor-data))
 
+(aio-defun leetcode--ensure-question-title (problem)
+  (if (and (leetcode-problem-dislikes problem)
+           (leetcode-problem-likes problem))
+      problem
+    (aio-await (leetcode--fetch-question-title
+                (leetcode-problem-title-slug problem)))))
+
+(aio-defun leetcode--ensure-question-content (problem)
+  (if (leetcode-problem-content problem)
+      problem
+    (aio-await (leetcode--fetch-question-content
+                (leetcode-problem-title-slug problem)))))
+
+(aio-defun leetcode--ensure-question-snippets (problem)
+  (if (leetcode-problem-snippets problem)
+      problem
+    (aio-await (leetcode--fetch-question-snippets
+                (leetcode-problem-title-slug problem)))))
+
+(aio-defun leetcode--ensure-question-testcases (problem)
+  (if (leetcode-problem-testcases problem)
+      problem
+    (aio-await (leetcode--fetch-question-testcases
+                (leetcode-problem-title-slug problem)))))
+
 (aio-defun leetcode--api-interpret-solution  (problem)
   "Fetch PROBLEM interpret_id."
   (let* ((title-slug (leetcode-problem-title-slug problem))
@@ -724,7 +749,7 @@ Return a list of rows, each row is a vector:
             (string-match-p leetcode--filter-regex title))
         t)
       (if leetcode--filter-tag
-          (let ((tags (split-string (leetcode--row-tags row) ", ")))
+          (let ((tags (s-split ", " (leetcode--row-tags row))))
             (member leetcode--filter-tag tags))
         t)
       (if leetcode--filter-difficulty
@@ -1105,10 +1130,10 @@ to it."
                                   (leetcode--get-current-problem-id))))
   (let* ((problem (leetcode--get-problem-by-id problem-id))
          (title-slug (leetcode-problem-title-slug problem))
-         (problem-with-title (aio-await (leetcode--fetch-question-title title-slug)))
-         (problem-with-content (aio-await (leetcode--fetch-question-content title-slug))) ; caching? avoid unnecessary requests.
-         (problem-with-testcases (aio-await (leetcode--fetch-question-testcases title-slug)))
-         (problem-with-snippets (aio-await (leetcode--fetch-question-snippets title-slug))))
+         (problem-with-title (aio-await (leetcode--ensure-question-title problem)))
+         (problem-with-content (aio-await (leetcode--ensure-question-content problem)))
+         (problem-with-testcases (aio-await (leetcode--ensure-question-testcases problem)))
+         (problem-with-snippets (aio-await (leetcode--ensure-question-snippets problem))))
     (leetcode--show-problem problem-with-snippets)))
 
 (defun leetcode-show-problem-by-slug (slug-title)
@@ -1281,23 +1306,16 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
     (let* ((code-buf-name (leetcode--get-code-buffer-name title))
            (code-buf (leetcode--get-code-buffer code-buf-name))
            (suffix (assoc-default leetcode--lang leetcode--lang-suffixes)))
-      (if (= (buffer-size code-buf) 0)
-          (with-current-buffer code-buf
-            (setq code-buf (current-buffer))
-            (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
-            (leetcode-solution-mode t)
-            (let* ((snippet (seq-find (lambda (s)
-                                        (equal (leetcode-snippet-lang-slug s)
-                                               leetcode--lang))
-                                      snippets))
-                   (template-code (leetcode-snippet-code snippet)))
-              (unless (save-mark-and-excursion
-                        (goto-char (point-min))
-                        (search-forward (string-trim template-code) nil t))
-                (insert template-code))
-              (leetcode--replace-in-buffer "" "")))
-        (with-current-buffer code-buf
-          (leetcode-solution-mode t)))
+      (with-current-buffer code-buf
+        (when (= (buffer-size code-buf) 0)
+          (let* ((snippet (seq-find (lambda (s)
+                                      (equal (leetcode-snippet-lang-slug s) leetcode--lang))
+                                    snippets))
+                 (template-code (leetcode-snippet-code snippet)))
+            (insert template-code)
+            (leetcode--replace-in-buffer "" "")))
+        (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
+        (leetcode-solution-mode t))
 
       (display-buffer code-buf
                       '((display-buffer-reuse-window
