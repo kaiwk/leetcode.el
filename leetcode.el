@@ -829,8 +829,8 @@ row."
   (setq leetcode--display-tags leetcode-prefer-tag-display)
   (leetcode-reset-filter-and-refresh))
 
-(aio-defun leetcode--ensure-login ()
-  (unless (leetcode--login-p)
+(aio-defun leetcode--ensure-login (&optional force)
+  (when (or force (not (leetcode--login-p)))
     (aio-await (leetcode--login)) ; It's weird that somehow we have to login twice to be real login...
     (aio-await (leetcode--login))))
 
@@ -867,6 +867,7 @@ row."
 (aio-defun leetcode-try ()
   "Asynchronously test the code using customized testcase."
   (interactive)
+  (aio-await (leetcode--ensure-login t))
   (let* ((title-slug (leetcode--get-slug-title (current-buffer)))
          (problem (leetcode--get-problem title-slug))
          (problem-id (leetcode-problem-id problem))
@@ -876,6 +877,7 @@ row."
 (aio-defun leetcode-submit ()
   "Asynchronously submit the code and show result."
   (interactive)
+  (aio-await (leetcode--ensure-login t))
   (let* ((code-buf (current-buffer))
          (code (leetcode--buffer-content code-buf))
          (slug-title (leetcode--get-slug-title code-buf))
