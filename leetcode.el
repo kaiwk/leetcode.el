@@ -1011,8 +1011,15 @@ alist specified in `display-buffer-alist'."
           (dotimes (i (length .std_output_list))
             (when (aref .std_output_list i)
               (insert (aref .std_output_list i))))))
-       ((eq .status_code 14)
-        (insert .status_msg))
+       ((or (eq .status_code 12) (eq .status_code 14))
+        (insert (format "Status: %s\n\n"
+                        (leetcode--add-font-lock
+                         (format "%s (%s/%s)" .status_msg .total_correct .total_testcases)
+                         'leetcode-error-face)))
+        (insert (format "Test Case: \n%s\n\n" .last_testcase))
+        (insert (format "Expected Answer: %s\n\n" .expected_output))
+        (unless (string-empty-p .std_output)
+          (insert (format "Stdout: \n%s\n" .std_output))))
        ((eq .status_code 15)
         (insert (leetcode--add-font-lock .status_msg 'leetcode-error-face))
         (insert "\n\n")
