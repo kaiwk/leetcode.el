@@ -79,7 +79,8 @@
 
 (defun leetcode--check-deps ()
   "Check if all dependencies installed."
-  (if (executable-find "my_cookies")
+  (if (or (executable-find "my_cookies")
+          leetcode-session-cookie)
       t
     (leetcode--install-my-cookie)
     nil))
@@ -121,6 +122,11 @@ mysql, mssql, oraclesql."
   "When execute `leetcode', always delete other windows."
   :group 'leetcode
   :type 'boolean)
+
+(defcustom leetcode-session-cookie nil
+  "Leetcode session cookie."
+  :group 'leetcode
+  :type 'string)
 
 (cl-defstruct leetcode-user
   "A LeetCode User.
@@ -375,6 +381,11 @@ query consolePanelConfig($titleSlug: String!) {
   "It will return an alist as the HTTP Referer Header.
 VALUE should be the referer."
   (cons "Referer" value))
+
+(defun leetcode--local-cookie-get ()
+  "Gets locally set session cookie."
+  (when-let ((my-cookie leetcode-session-cookie))
+    `((,leetcode--cookie-session ,my-cookie))))
 
 (defun leetcode--cookie-get-all ()
   "Get leetcode session with `my_cookies'. You can install it with pip."
@@ -703,7 +714,8 @@ submission status."
   "We are not login actually, we are retrieving LeetCode login session
 from local browser. It also cleans LeetCode cookies in `url-cookie-file'."
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
-  (let* ((leetcode-cookie (leetcode--cookie-get-all)))
+  (let* ((leetcode-cookie (or (leetcode--local-cookie-get)
+                              (leetcode--cookie-get-all))))
     (cl-loop for (key value) in leetcode-cookie
              do (url-cookie-store key value nil leetcode--domain "/" t)))
   ;; After login, we should have our user data already.
