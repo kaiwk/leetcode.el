@@ -5,7 +5,7 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "26.1") (s "1.13.0") (aio "1.0") (log4e "0.3.3"))
+;; Package-Requires: ((emacs "28.1") (s "1.13.0") (aio "1.0") (log4e "0.3.3"))
 ;; Version: 0.1.27
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -73,12 +73,17 @@
   "Install leetcode dependencies."
   (let ((async-shell-command-display-buffer t))
     (async-shell-command
-     "pip3 install my_cookies"
+     (format "python -m venv --clear %s && %s/bin/pip3 install my_cookies" leetcode-python-environment leetcode-python-environment)
      (get-buffer-create "*leetcode-install*"))))
+
+(defun leetcode--my-cookies-path ()
+  "Find the path to the my_cookies executable."
+  (or (executable-find (format "%s/bin/my_cookies" leetcode-python-environment))
+      (executable-find "my_cookies")))
 
 (defun leetcode--check-deps ()
   "Check if all dependencies installed."
-  (if (executable-find "my_cookies")
+  (if (leetcode--my-cookies-path)
       t
     (leetcode--install-my-cookie)
     nil))
@@ -120,6 +125,11 @@ mysql, mssql, oraclesql."
   "When execute `leetcode', always delete other windows."
   :group 'leetcode
   :type 'boolean)
+
+(defcustom leetcode-python-environment (file-name-concat user-emacs-directory "leetcode-env")
+  "The path to the isolated python virtual-environment to use."
+  :group 'leetcode
+  :type 'directory)
 
 (cl-defstruct leetcode-user
   "A LeetCode User.
@@ -377,8 +387,8 @@ VALUE should be the referer."
 
 (defun leetcode--cookie-get-all ()
   "Get leetcode session with `my_cookies'. You can install it with pip."
-  (let* ((my-cookies (executable-find "my_cookies"))
-         (my-cookies-output (shell-command-to-string "my_cookies"))
+  (let* ((my-cookies (leetcode--my-cookies-path))
+         (my-cookies-output (shell-command-to-string (leetcode--my-cookies-path)))
          (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
                                    (s-split "\n" my-cookies-output 'OMIT-NULLS)))
          (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
