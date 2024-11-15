@@ -1097,7 +1097,6 @@ will show the detail in other window and jump to it."
                       "dislikes: " (number-to-string dislikes)))
       ;; Sometimes LeetCode don't have a '<p>' at the outermost...
       (insert "<p>" content "</p>")
-      (setq shr-current-font t)
       (leetcode--replace-in-buffer "" "")
       ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
       (leetcode--replace-in-buffer "https" "http")
