@@ -5,7 +5,7 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "26.1") (s "1.13.0") (dash "2.16.0") (aio "1.0") (log4e "0.3.3"))
+;; Package-Requires: ((emacs "26.1") (s "1.13.0") (aio "1.0") (log4e "0.3.3"))
 ;; Version: 0.1.27
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -43,7 +43,6 @@
 (require 'mm-url)
 (require 'cl-lib)
 
-(require 'dash)
 (require 's)
 (require 'aio)
 (require 'log4e)
