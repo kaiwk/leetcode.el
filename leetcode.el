@@ -1128,7 +1128,8 @@ Get problem by id and use `shr-render-buffer' to render problem
 detail. This action will show the detail in other window and jump
 to it."
   (interactive (list (read-string "Show problem by problem id: "
-                                  (leetcode--get-current-problem-id))))
+                                  (when (derived-mode-p 'leetcode--problems-mode)
+                                    (leetcode--get-current-problem-id)))))
   (let* ((problem (leetcode--get-problem-by-id problem-id))
          (title-slug (leetcode-problem-title-slug problem))
          (problem-with-title (aio-await (leetcode--ensure-question-title problem)))
