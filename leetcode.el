@@ -889,7 +889,7 @@ row."
       (goto-char url-http-end-of-headers)
       (let-alist (json-read)
         (let ((qid .data.activeDailyCodingChallengeQuestion.question.qid))
-          (leetcode-show-problem (string-to-number qid)))))))
+          (leetcode-show-problem qid))))))
 
 (aio-defun leetcode-try ()
   "Asynchronously test the code using customized testcase."
