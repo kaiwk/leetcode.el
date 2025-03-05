@@ -232,6 +232,11 @@ Default is programming language.")
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
 
+(defconst leetcode--code-start "// code_start"
+  "Code start mark in LeetCode description.")
+(defconst leetcode--code-end "// code_end"
+  "Code end mark in LeetCode description.")
+
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by tag.")
 (defvar leetcode--filter-difficulty nil
@@ -387,6 +392,18 @@ query consolePanelConfig($titleSlug: String!) {
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun leetcode--insert-code-start-marker ()
+  "Insert code start marker."
+  (when (or (string= leetcode--lang "c")
+            (string= leetcode--lang "cpp"))
+    (insert (format "\n\n%s\n\n" leetcode--code-start))))
+
+(defun leetcode--insert-code-end-marker ()
+  "Insert code end marker."
+  (when (or (string= leetcode--lang "c")
+            (string= leetcode--lang "cpp"))
+    (insert (format "\n\n%s\n\n" leetcode--code-end))))
+
 (defun leetcode--referer (value)
   "It will return an alist as the HTTP Referer Header.
 VALUE should be the referer."
@@ -502,7 +519,11 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
 
 (defun leetcode--code-buffer-data ()
   "Get code buffer content, that is, the `current-buffer'."
-  (leetcode--buffer-content (current-buffer)))
+  (let ((code (leetcode--buffer-content (current-buffer)))
+        (pattern (concat leetcode--code-start "\\([\0-\377]*?\\)" leetcode--code-end)))
+    (if (string-match pattern code)
+        (match-string 1 code)
+      code)))
 
 (defun leetcode--get-slug-title (code-buf)
   "Get slug title before try or submit with CODE-BUF.
@@ -923,7 +944,7 @@ row."
   (interactive)
   (aio-await (leetcode--ensure-login t))
   (let* ((code-buf (current-buffer))
-         (code (leetcode--buffer-content code-buf))
+         (code (leetcode--code-buffer-data))
          (slug-title (leetcode--get-slug-title code-buf))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
@@ -1330,7 +1351,9 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
                                       (equal (leetcode-snippet-lang-slug s) leetcode--lang))
                                     snippets))
                  (template-code (leetcode-snippet-code snippet)))
+            (leetcode--insert-code-start-marker)
             (insert template-code)
+            (leetcode--insert-code-end-marker)
             (leetcode--replace-in-buffer "" "")))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (leetcode-solution-mode t))
