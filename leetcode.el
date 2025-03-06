@@ -1362,7 +1362,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
   "This command should be run in LeetCode code buffer.
 It will restore the layout based on current buffer's name."
   (interactive)
-  (let* ((slug-title (file-name-sans-extension (buffer-name)))
+  (let* ((slug-title (leetcode--get-slug-title (current-buffer)))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
          (desc-buf (get-buffer (leetcode--detail-buffer-name problem-id)))
