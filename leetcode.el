@@ -932,6 +932,7 @@ row."
 (aio-defun leetcode-try ()
   "Asynchronously test the code using customized testcase."
   (interactive)
+  (leetcode-restore-layout)
   (aio-await (leetcode--ensure-login t))
   (let* ((title-slug (leetcode--get-slug-title (current-buffer)))
          (problem (leetcode--get-problem title-slug))
@@ -942,6 +943,7 @@ row."
 (aio-defun leetcode-submit ()
   "Asynchronously submit the code and show result."
   (interactive)
+  (leetcode-restore-layout)
   (aio-await (leetcode--ensure-login t))
   (let* ((code-buf (current-buffer))
          (code (leetcode--code-buffer-data))
