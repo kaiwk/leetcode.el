@@ -71,9 +71,16 @@
 
 (defun leetcode--install-my-cookie ()
   "Install leetcode dependencies."
-  (let ((async-shell-command-display-buffer t))
+  (let ((async-shell-command-display-buffer t)
+        (pipx (executable-find "pipx"))
+        (python3 (executable-find "python3"))
+        (python (executable-find "python")))
     (async-shell-command
-     (format "python -m venv --clear %s && %s/bin/pip3 install my_cookies" leetcode-python-environment leetcode-python-environment)
+     (if pipx
+         (format "%s install my_cookies" pipx)
+       (format "%s -m venv --clear %s && %s/bin/pip3 install my_cookies"
+               (or python3 python "python") ; require python environment
+               leetcode-python-environment leetcode-python-environment))
      (get-buffer-create "*leetcode-install*"))))
 
 (defun leetcode--my-cookies-path ()
