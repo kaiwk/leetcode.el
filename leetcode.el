@@ -1373,6 +1373,9 @@ It will restore the layout based on current buffer's name."
     (leetcode--solving-window-layout)
     (unless desc-buf
       (aio-await (leetcode-show-problem problem-id)))
+    (with-current-buffer result-buf
+      (erase-buffer)
+      (insert "Waiting for result..."))
     (display-buffer desc-buf
                     '((display-buffer-reuse-window
                        leetcode--display-detail)
