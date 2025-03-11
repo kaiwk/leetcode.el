@@ -1017,6 +1017,10 @@ alist specified in `display-buffer-alist'."
       (goto-char (point-max))
       (cond
        ((eq .status_code 10)
+        (if (equal .code_answer .expected_code_answer)
+            (insert (leetcode--add-font-lock "PASS: " 'leetcode-accepted-face))
+          (insert (leetcode--add-font-lock "FAIL: " 'leetcode-error-face)))
+        (insert "\n\n")
         ;; Code Answer
         (insert "Code Answer:\n")
         (dotimes (i (length .code_answer))
