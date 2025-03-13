@@ -590,7 +590,7 @@ of QUERY-NAME."
                :title-slug .titleSlug
                :acceptance (format "%.1f%%" .acRate)
                :difficulty .difficulty
-               :paid-only  (eq .paidOnly :json-true)
+               :paid-only  (eq .paidOnly t)
                :tags       (seq-reduce (lambda (tags tag)
                                          (let-alist tag
                                            (push .slug tags)))
@@ -762,7 +762,7 @@ Return a list of rows, each row is a vector:
                  (p-title (concat
                            (leetcode-problem-title p)
                            " "
-                           (if (eq (leetcode-problem-paid-only p) t)
+                           (if (leetcode-problem-paid-only p)
                                (leetcode--add-font-lock leetcode--paid 'leetcode-paid-face)
                              " ")))
                  (p-acceptance (leetcode-problem-acceptance p))
