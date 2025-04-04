@@ -1081,6 +1081,7 @@ STATUS_CODE has following possible value:
 - 10: Accepted
 - 11: Wrong Anwser
 - 12: Memory Limit Exceeded
+- 13: Output Limit Exceeded
 - 14: Time Limit Exceeded
 - 15: Runtime Error.  full_runtime_error
 - 20: Compile Error.  full_compile_error"
@@ -1112,6 +1113,8 @@ STATUS_CODE has following possible value:
         (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
         (insert (format "\n\n%s / %s testcases passed\n" .total_correct .total_testcases))
         (insert (format "Last Test Case: %s\n" .last_testcase)))
+       ((eq .status_code 13)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face))))
        ((eq .status_code 14)
         (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
         (insert (format "\n\n%s / %s testcases passed\n" .total_correct .total_testcases))
