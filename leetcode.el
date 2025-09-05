@@ -90,7 +90,8 @@
 
 (defun leetcode--check-deps ()
   "Check if all dependencies installed."
-  (if (leetcode--my-cookies-path)
+  (if (or (leetcode--my-cookies-path)
+          leetcode-session-cookie)
       t
     (leetcode--install-my-cookie)
     nil))
@@ -132,6 +133,11 @@ mysql, mssql, oraclesql."
   "When execute `leetcode', always delete other windows."
   :group 'leetcode
   :type 'boolean)
+
+(defcustom leetcode-session-cookie nil
+  "Leetcode session cookie."
+  :group 'leetcode
+  :type 'string)
 
 (defcustom leetcode-python-environment (file-name-concat user-emacs-directory "leetcode-env")
   "The path to the isolated python virtual-environment to use."
@@ -408,6 +414,11 @@ query consolePanelConfig($titleSlug: String!) {
   "It will return an alist as the HTTP Referer Header.
 VALUE should be the referer."
   (cons "Referer" value))
+
+(defun leetcode--local-cookie-get ()
+  "Gets locally set session cookie."
+  (when-let ((my-cookie leetcode-session-cookie))
+    `((,leetcode--cookie-session ,my-cookie))))
 
 (defun leetcode--cookie-get-all ()
   "Get leetcode session with `my_cookies'. You can install it with pip."
@@ -740,7 +751,8 @@ submission status."
   "We are not login actually, we are retrieving LeetCode login session
 from local browser. It also cleans LeetCode cookies in `url-cookie-file'."
   (ignore-errors (url-cookie-delete-cookies leetcode--domain))
-  (let* ((leetcode-cookie (leetcode--cookie-get-all)))
+  (let* ((leetcode-cookie (or (leetcode--local-cookie-get)
+                              (leetcode--cookie-get-all))))
     (cl-loop for (key value) in leetcode-cookie
              do (url-cookie-store key value nil leetcode--domain "/" t)))
   ;; After login, we should have our user data already.
@@ -1158,7 +1170,8 @@ will show the detail in other window and jump to it."
                       "dislikes: " (number-to-string dislikes)))
       ;; Sometimes LeetCode don't have a '<p>' at the outermost...
       (insert "<p>" content "</p>")
-      (leetcode--replace-in-buffer "" "")
+      (leetcode--replace-in-buffer "
+" "")
       ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
       (leetcode--replace-in-buffer "https" "http")
       (shr-render-buffer (current-buffer)))
@@ -1381,7 +1394,8 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
             (leetcode--insert-code-start-marker)
             (insert template-code)
             (leetcode--insert-code-end-marker)
-            (leetcode--replace-in-buffer "" "")))
+            (leetcode--replace-in-buffer "
+" "")))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (leetcode-solution-mode t))
 
