@@ -5,7 +5,7 @@
 ;; Author: Wang Kai <kaiwkx@gmail.com>
 ;; Keywords: extensions, tools
 ;; URL: https://github.com/kaiwk/leetcode.el
-;; Package-Requires: ((emacs "26.1") (s "1.13.0") (dash "2.16.0") (aio "1.0") (log4e "0.3.3"))
+;; Package-Requires: ((emacs "28.1") (s "1.13.0") (aio "1.0") (log4e "0.3.3"))
 ;; Version: 0.1.27
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -43,7 +43,6 @@
 (require 'mm-url)
 (require 'cl-lib)
 
-(require 'dash)
 (require 's)
 (require 'aio)
 (require 'log4e)
@@ -72,14 +71,26 @@
 
 (defun leetcode--install-my-cookie ()
   "Install leetcode dependencies."
-  (let ((async-shell-command-display-buffer t))
+  (let ((async-shell-command-display-buffer t)
+        (pipx (executable-find "pipx"))
+        (python3 (executable-find "python3"))
+        (python (executable-find "python")))
     (async-shell-command
-     "pip3 install my_cookies"
+     (if pipx
+         (format "%s install my_cookies" pipx)
+       (format "%s -m venv --clear %s && %s/bin/pip3 install my_cookies"
+               (or python3 python "python") ; require python environment
+               leetcode-python-environment leetcode-python-environment))
      (get-buffer-create "*leetcode-install*"))))
+
+(defun leetcode--my-cookies-path ()
+  "Find the path to the my_cookies executable."
+  (or (executable-find (format "%s/bin/my_cookies" leetcode-python-environment))
+      (executable-find "my_cookies")))
 
 (defun leetcode--check-deps ()
   "Check if all dependencies installed."
-  (if (or (executable-find "my_cookies")
+  (if (or (leetcode--my-cookies-path)
           leetcode-session-cookie)
       t
     (leetcode--install-my-cookie)
@@ -127,6 +138,11 @@ mysql, mssql, oraclesql."
   "Leetcode session cookie."
   :group 'leetcode
   :type 'string)
+
+(defcustom leetcode-python-environment (file-name-concat user-emacs-directory "leetcode-env")
+  "The path to the isolated python virtual-environment to use."
+  :group 'leetcode
+  :type 'directory)
 
 (cl-defstruct leetcode-user
   "A LeetCode User.
@@ -221,6 +237,11 @@ Default is programming language.")
   "A map of language slug name to LeetCode programming language suffix.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
+
+(defconst leetcode--code-start "// code_start"
+  "Code start mark in LeetCode description.")
+(defconst leetcode--code-end "// code_end"
+  "Code end mark in LeetCode description.")
 
 (defvar leetcode--filter-regex nil "Filter rows by regex.")
 (defvar leetcode--filter-tag nil "Filter rows by tag.")
@@ -377,6 +398,18 @@ query consolePanelConfig($titleSlug: String!) {
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun leetcode--insert-code-start-marker ()
+  "Insert code start marker."
+  (when (or (string= leetcode--lang "c")
+            (string= leetcode--lang "cpp"))
+    (insert (format "\n\n%s\n\n" leetcode--code-start))))
+
+(defun leetcode--insert-code-end-marker ()
+  "Insert code end marker."
+  (when (or (string= leetcode--lang "c")
+            (string= leetcode--lang "cpp"))
+    (insert (format "\n\n%s\n\n" leetcode--code-end))))
+
 (defun leetcode--referer (value)
   "It will return an alist as the HTTP Referer Header.
 VALUE should be the referer."
@@ -389,8 +422,8 @@ VALUE should be the referer."
 
 (defun leetcode--cookie-get-all ()
   "Get leetcode session with `my_cookies'. You can install it with pip."
-  (let* ((my-cookies (executable-find "my_cookies"))
-         (my-cookies-output (shell-command-to-string "my_cookies"))
+  (let* ((my-cookies (leetcode--my-cookies-path))
+         (my-cookies-output (shell-command-to-string (leetcode--my-cookies-path)))
          (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
                                    (s-split "\n" my-cookies-output 'OMIT-NULLS)))
          (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
@@ -430,7 +463,7 @@ VALUE should be the referer."
   "Make TITLE a slug title.
 Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
   (let* ((str1 (replace-regexp-in-string "[\s-]+" "-" (downcase title)))
-         (res (replace-regexp-in-string "[(),]" "" str1)))
+         (res (replace-regexp-in-string "[(),']" "" str1)))
     res))
 
 (defun leetcode--replace-in-buffer (regex to)
@@ -497,7 +530,11 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
 
 (defun leetcode--code-buffer-data ()
   "Get code buffer content, that is, the `current-buffer'."
-  (leetcode--buffer-content (current-buffer)))
+  (let ((code (leetcode--buffer-content (current-buffer)))
+        (pattern (concat leetcode--code-start "\\([\0-\377]*?\\)" leetcode--code-end)))
+    (if (string-match pattern code)
+        (match-string 1 code)
+      code)))
 
 (defun leetcode--get-slug-title (code-buf)
   "Get slug title before try or submit with CODE-BUF.
@@ -564,7 +601,7 @@ of QUERY-NAME."
                :title-slug .titleSlug
                :acceptance (format "%.1f%%" .acRate)
                :difficulty .difficulty
-               :paid-only  (eq .paidOnly :json-true)
+               :paid-only  (eq .paidOnly t)
                :tags       (seq-reduce (lambda (tags tag)
                                          (let-alist tag
                                            (push .slug tags)))
@@ -737,7 +774,7 @@ Return a list of rows, each row is a vector:
                  (p-title (concat
                            (leetcode-problem-title p)
                            " "
-                           (if (eq (leetcode-problem-paid-only p) t)
+                           (if (leetcode-problem-paid-only p)
                                (leetcode--add-font-lock leetcode--paid 'leetcode-paid-face)
                              " ")))
                  (p-acceptance (leetcode-problem-acceptance p))
@@ -902,11 +939,12 @@ row."
       (goto-char url-http-end-of-headers)
       (let-alist (json-read)
         (let ((qid .data.activeDailyCodingChallengeQuestion.question.qid))
-          (leetcode-show-problem (string-to-number qid)))))))
+          (leetcode-show-problem qid))))))
 
 (aio-defun leetcode-try ()
   "Asynchronously test the code using customized testcase."
   (interactive)
+  (leetcode-restore-layout)
   (aio-await (leetcode--ensure-login t))
   (let* ((title-slug (leetcode--get-slug-title (current-buffer)))
          (problem (leetcode--get-problem title-slug))
@@ -917,9 +955,10 @@ row."
 (aio-defun leetcode-submit ()
   "Asynchronously submit the code and show result."
   (interactive)
+  (leetcode-restore-layout)
   (aio-await (leetcode--ensure-login t))
   (let* ((code-buf (current-buffer))
-         (code (leetcode--buffer-content code-buf))
+         (code (leetcode--code-buffer-data))
          (slug-title (leetcode--get-slug-title code-buf))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
@@ -1007,6 +1046,10 @@ alist specified in `display-buffer-alist'."
       (goto-char (point-max))
       (cond
        ((eq .status_code 10)
+        (if (equal .code_answer .expected_code_answer)
+            (insert (leetcode--add-font-lock "PASS: " 'leetcode-accepted-face))
+          (insert (leetcode--add-font-lock "FAIL: " 'leetcode-error-face)))
+        (insert "\n\n")
         ;; Code Answer
         (insert "Code Answer:\n")
         (dotimes (i (length .code_answer))
@@ -1023,8 +1066,15 @@ alist specified in `display-buffer-alist'."
           (dotimes (i (length .std_output_list))
             (when (aref .std_output_list i)
               (insert (aref .std_output_list i))))))
-       ((eq .status_code 14)
-        (insert .status_msg))
+       ((or (eq .status_code 12) (eq .status_code 14))
+        (insert (format "Status: %s\n\n"
+                        (leetcode--add-font-lock
+                         (format "%s (%s/%s)" .status_msg .total_correct .total_testcases)
+                         'leetcode-error-face)))
+        (insert (format "Test Case: \n%s\n\n" .last_testcase))
+        (insert (format "Expected Answer: %s\n\n" .expected_output))
+        (unless (string-empty-p .std_output)
+          (insert (format "Stdout: \n%s\n" .std_output))))
        ((eq .status_code 15)
         (insert (leetcode--add-font-lock .status_msg 'leetcode-error-face))
         (insert "\n\n")
@@ -1042,6 +1092,8 @@ STATUS_CODE has following possible value:
 
 - 10: Accepted
 - 11: Wrong Anwser
+- 12: Memory Limit Exceeded
+- 13: Output Limit Exceeded
 - 14: Time Limit Exceeded
 - 15: Runtime Error.  full_runtime_error
 - 20: Compile Error.  full_compile_error"
@@ -1069,11 +1121,20 @@ STATUS_CODE has following possible value:
         (insert (format "Expected Answer: %s\n\n" .expected_output))
         (unless (string-empty-p .std_output)
           (insert (format "Stdout: \n%s\n" .std_output))))
+       ((eq .status_code 12)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
+        (insert (format "\n\n%s / %s testcases passed\n" .total_correct .total_testcases))
+        (insert (format "Last Test Case: %s\n" .last_testcase)))
+       ((eq .status_code 13)
+        (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face))))
        ((eq .status_code 14)
         (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
-        (insert "\n"))
+        (insert (format "\n\n%s / %s testcases passed\n" .total_correct .total_testcases))
+        (insert (format "Last Test Case: %s\n" .last_testcase)))
        ((eq .status_code 15)
         (insert (format "Status: %s" (leetcode--add-font-lock .status_msg 'leetcode-error-face)))
+        (insert (format "\n\n%s / %s testcases passed\n" .total_correct .total_testcases))
+        (insert (format "Last Test Case: %s\n" .last_testcase))
         (insert "\n\n")
         (insert (format .full_runtime_error)))
        ((eq .status_code 20)
@@ -1109,8 +1170,8 @@ will show the detail in other window and jump to it."
                       "dislikes: " (number-to-string dislikes)))
       ;; Sometimes LeetCode don't have a '<p>' at the outermost...
       (insert "<p>" content "</p>")
-      (setq shr-current-font t)
-      (leetcode--replace-in-buffer "" "")
+      (leetcode--replace-in-buffer "
+" "")
       ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
       (leetcode--replace-in-buffer "https" "http")
       (shr-render-buffer (current-buffer)))
@@ -1142,7 +1203,8 @@ Get problem by id and use `shr-render-buffer' to render problem
 detail. This action will show the detail in other window and jump
 to it."
   (interactive (list (read-string "Show problem by problem id: "
-                                  (leetcode--get-current-problem-id))))
+                                  (when (derived-mode-p 'leetcode--problems-mode)
+                                    (leetcode--get-current-problem-id)))))
   (let* ((problem (leetcode--get-problem-by-id problem-id))
          (title-slug (leetcode-problem-title-slug problem))
          (problem-with-title (aio-await (leetcode--ensure-question-title problem)))
@@ -1225,8 +1287,9 @@ Call `leetcode-solve-problem' on the current problem id."
 
 (defun leetcode--kill-buff-and-delete-window (buf)
   "Kill BUF and delete its window."
-  (delete-windows-on buf t)
-  (kill-buffer buf))
+  (when buf
+    (delete-windows-on buf t)
+    (kill-buffer buf)))
 
 (defun leetcode-quit ()
   "Close and delete leetcode related buffers and windows."
@@ -1241,7 +1304,8 @@ Call `leetcode-solve-problem' on the current problem id."
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--detail-buffer-name problem-id)))
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--result-buffer-name problem-id)))
             (leetcode--kill-buff-and-delete-window (get-buffer (leetcode--testcase-buffer-name problem-id)))))
-        leetcode--problem-titles))
+        leetcode--problem-titles)
+  (setq leetcode--problem-titles '()))
 
 (defun leetcode--set-lang (snippets)
   "Set `leetcode--lang' based on langSlug in SNIPPETS."
@@ -1327,8 +1391,11 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
                                       (equal (leetcode-snippet-lang-slug s) leetcode--lang))
                                     snippets))
                  (template-code (leetcode-snippet-code snippet)))
+            (leetcode--insert-code-start-marker)
             (insert template-code)
-            (leetcode--replace-in-buffer "" "")))
+            (leetcode--insert-code-end-marker)
+            (leetcode--replace-in-buffer "
+" "")))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (leetcode-solution-mode t))
 
@@ -1350,7 +1417,7 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
   "This command should be run in LeetCode code buffer.
 It will restore the layout based on current buffer's name."
   (interactive)
-  (let* ((slug-title (file-name-sans-extension (buffer-name)))
+  (let* ((slug-title (leetcode--get-slug-title (current-buffer)))
          (problem (leetcode--get-problem slug-title))
          (problem-id (leetcode-problem-id problem))
          (desc-buf (get-buffer (leetcode--detail-buffer-name problem-id)))
@@ -1359,6 +1426,9 @@ It will restore the layout based on current buffer's name."
     (leetcode--solving-window-layout)
     (unless desc-buf
       (aio-await (leetcode-show-problem problem-id)))
+    (with-current-buffer result-buf
+      (erase-buffer)
+      (insert "Waiting for result..."))
     (display-buffer desc-buf
                     '((display-buffer-reuse-window
                        leetcode--display-detail)
