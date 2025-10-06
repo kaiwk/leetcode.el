@@ -89,6 +89,14 @@ You can save solution by setting `leetcode-save-solutions`:
 (setq leetcode-directory "~/leetcode")
 ```
 
+### Pandas Mode for Database Problems
+If a LeetCode problem provides SQL snippets, `leetcode.el` can now use Pandas
+as the prefered language:
+```elisp
+(setq leetcode-prefer-sql "pythondata")
+```
+
+
 # Work with Org Mode
 
 `leetcode-show-problem-by-slug` will let you put to org files with a link in this format to show the question after the *leetcode* buffer is load like [elisp:(leetcode-show-problem-by-slug (leetcode--slugify-title "ZigZag Conversion"))]
