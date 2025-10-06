@@ -113,7 +113,8 @@ python3, ruby, rust, scala, swift."
   :type 'string)
 
 (defcustom leetcode-prefer-sql "mysql"
-  "LeetCode sql implementation.
+  "LeetCode SQL or Pandas implementation.
+Possible values:
 mysql, mssql, oraclesql, pythondata."
   :group 'leetcode
   :type 'string)
