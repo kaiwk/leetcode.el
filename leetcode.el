@@ -114,7 +114,7 @@ python3, ruby, rust, scala, swift."
 
 (defcustom leetcode-prefer-sql "mysql"
   "LeetCode sql implementation.
-mysql, mssql, oraclesql."
+mysql, mssql, oraclesql, pythondata."
   :group 'leetcode
   :type 'string)
 
@@ -227,7 +227,7 @@ Default is programming language.")
     ("kotlin" . ".kt") ("php" . ".php") ("python" . ".py") ("python3" . ".py")
     ("racket" . ".rkt") ("ruby" . ".rb") ("rust" . ".rs")
     ("scala" . ".scala") ("swift" . ".swift") ("typescript" . ".ts")
-    ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql"))
+    ("mysql" . ".sql") ("mssql" . ".sql") ("oraclesql" . ".sql") ("pythondata" . ".py"))
   "A map of language slug name to LeetCode programming language suffix.
 c, cpp, csharp, golang, java, javascript, typescript, kotlin, php, python,
 python3, ruby, rust, scala, swift, mysql, mssql, oraclesql.")
