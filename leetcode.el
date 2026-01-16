@@ -567,7 +567,7 @@ of QUERY-NAME."
               (response-status (car response))
               (response-buffer (cdr response)))
          (if-let ((error (plist-get response-status :error)))
-             (swith-to-buffer response-buffer)
+             (switch-to-buffer response-buffer)
            (let-alist (with-current-buffer response-buffer (goto-char url-http-end-of-headers) (json-read))
              ,@body))))))
 
