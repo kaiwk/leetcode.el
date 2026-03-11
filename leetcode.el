@@ -322,29 +322,38 @@ query globalData {
 }")
 
 ;; graphql.el doesn't support `:as' keyword, so let's use the raw graphQL string.
-(defconst leetcode--graphql-problemset-question-list "
-query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
-  problemsetQuestionList: questionList(
-    categorySlug: $categorySlug
-    limit: $limit
-    skip: $skip
+(defconst leetcode--graphql-problemset-question-list-v2 "
+query problemsetQuestionListV2($filters: QuestionFilterInput, $limit: Int, $searchKeyword: String, $skip: Int, $sortBy: QuestionSortByInput, $categorySlug: String) {
+  problemsetQuestionListV2(
     filters: $filters
+    limit: $limit
+    searchKeyword: $searchKeyword
+    skip: $skip
+    sortBy: $sortBy
+    categorySlug: $categorySlug
   ) {
-    total: totalNum
-    questions: data {
-      acRate
-      difficulty
-      freqBar
-      frontendQuestionId: questionFrontendId
-      isFavor
-      paidOnly: isPaidOnly
-      status
-      title
+    questions {
+      id
       titleSlug
-      topicTags { name id slug }
-      hasSolution
-      hasVideoSolution
+      title
+      translatedTitle
+      questionFrontendId
+      paidOnly
+      difficulty
+      topicTags {
+        name
+        slug
+        nameTranslated
+      }
+      status
+      isInMyFavorites
+      frequency
+      acRate
+      contestPoint
     }
+    totalLength
+    finishedLength
+    hasMore
   }
 }")
 
@@ -470,10 +479,10 @@ Such as 'Two Sum' will be converted to 'two-sum'. 'Pow(x, n)' will be 'powx-n'"
 
 (defun leetcode--stringify-difficulty (difficulty)
   "Add font-lock to DIFFICULTY."
-  (pcase difficulty
-    ("Easy" (leetcode--add-font-lock "Easy" 'leetcode-easy-face))
-    ("Medium" (leetcode--add-font-lock "Medium" 'leetcode-medium-face))
-    ("Hard" (leetcode--add-font-lock "Hard" 'leetcode-hard-face))))
+  (pcase (downcase difficulty)
+    ("easy" (leetcode--add-font-lock "Easy" 'leetcode-easy-face))
+    ("medium" (leetcode--add-font-lock "Medium" 'leetcode-medium-face))
+    ("hard" (leetcode--add-font-lock "Hard" 'leetcode-hard-face))))
 
 (defun leetcode--add-font-lock (str face)
   "Add font-lock FACE to STR."
@@ -567,7 +576,9 @@ of QUERY-NAME."
               (response-status (car response))
               (response-buffer (cdr response)))
          (if-let ((error (plist-get response-status :error)))
-             (switch-to-buffer response-buffer)
+             (progn
+               (print (leetcode--buffer-content response-buffer))
+               (switch-to-buffer response-buffer))
            (let-alist (with-current-buffer response-buffer (goto-char url-http-end-of-headers) (json-read))
              ,@body))))))
 
@@ -576,19 +587,21 @@ of QUERY-NAME."
   (setf (leetcode-user-username leetcode--user) .data.userStatus.username)
   (setf (leetcode-user-is-premium leetcode--user) .data.userStatus.isPremium))
 
-(leetcode--define-graphql problemset-question-list (category-slug skip limit filters)
-  ;; problem list
-  (setf (leetcode-problems-num leetcode--problems) .data.problemsetQuestionList.total
-        (leetcode-problems-tag leetcode--problems) "all")
-  (let (problems)
-    (dotimes (i .data.problemsetQuestionList.total)
-      (let-alist (aref .data.problemsetQuestionList.questions i)
+(leetcode--define-graphql problemset-question-list-v2 (category-slug skip limit filters search-keyword sort-by)
+  (let ((problems)
+        (problems-len (length .data.problemsetQuestionListV2.questions)))
+    (setf (leetcode-problems-num leetcode--problems) problems-len
+          (leetcode-problems-tag leetcode--problems) "all")
+    (leetcode--debug "length: %s, total: %s" problems-len .data.problemsetQuestionListV2.totalLength)
+    (dotimes (i problems-len)
+      (leetcode--debug "i: %s, p: %s" i (aref .data.problemsetQuestionListV2.questions i))
+      (let-alist (aref .data.problemsetQuestionListV2.questions i)
         (push (make-leetcode-problem
                :status     .status
-               :id         .frontendQuestionId
+               :id         .questionFrontendId
                :title      .title
                :title-slug .titleSlug
-               :acceptance (format "%.1f%%" .acRate)
+               :acceptance (format "%.1f%%" (* .acRate 100))
                :difficulty .difficulty
                :paid-only  (eq .paidOnly t)
                :tags       (seq-reduce (lambda (tags tag)
@@ -646,7 +659,7 @@ of QUERY-NAME."
       (user-error "LeetCode problem not found: %s" title-slug))))
 
 (defalias 'leetcode--fetch-user-status (symbol-function 'leetcode--fetch-global-data))
-(defalias 'leetcode--fetch-question-list (symbol-function 'leetcode--fetch-problemset-question-list))
+(defalias 'leetcode--fetch-question-list (symbol-function 'leetcode--fetch-problemset-question-list-v2))
 (defalias 'leetcode--fetch-question-testcases (symbol-function 'leetcode--fetch-console-panel-config))
 (defalias 'leetcode--fetch-question-snippets (symbol-function 'leetcode--fetch-question-editor-data))
 
@@ -755,9 +768,10 @@ Return a list of rows, each row is a vector:
         rows)
     (dolist (p problems (reverse rows))
       (if (or leetcode--display-paid (not (leetcode-problem-paid-only p)))
-          (let* ((p-status (if (equal (leetcode-problem-status p) "ac")
+          (let* ((p-status (if (equal (leetcode-problem-status p) "SOLVED")
                                (leetcode--add-font-lock leetcode--checkmark 'leetcode-checkmark-face)
-                             " "))
+                             (string-width leetcode--checkmark)
+                             "  "))
                  (p-id (leetcode-problem-id p))
                  (p-title (concat
                            (leetcode-problem-title p)
@@ -890,7 +904,12 @@ row."
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
   (message "LeetCode refreshing question list...")
-  (aio-await (leetcode--fetch-question-list "all-code-essentials" 0 4000 #s(hash-table))) ; TODO pagination?
+  ;; max page limit is 100
+  (aio-await (leetcode--fetch-question-list "all-code-essentials" 0 100
+                                            '((filterCombineType . "ALL"))
+                                            ""
+                                            '((sortField . "CUSTOM")
+                                              (sortOrder . "ASCENDING")))) ; TODO pagination?
   (setq leetcode--display-tags leetcode-prefer-tag-display)
   (leetcode-reset-filter-and-refresh))
 
