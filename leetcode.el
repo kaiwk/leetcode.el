@@ -186,8 +186,9 @@ in 'leetcode.el'."
   "All LeetCode problems, the problems can filtered by tag.
 :num      Number
 :tag      String
-:problems List[leetcode--problems]"
-  num tag problems)
+:problems List[leetcode--problems]
+:has-more Boolean"
+  num tag problems has-more)
 
 (defvar leetcode--user (make-leetcode-user)
   "A User object.")
@@ -577,7 +578,6 @@ of QUERY-NAME."
               (response-buffer (cdr response)))
          (if-let ((error (plist-get response-status :error)))
              (progn
-               (print (leetcode--buffer-content response-buffer))
                (switch-to-buffer response-buffer))
            (let-alist (with-current-buffer response-buffer (goto-char url-http-end-of-headers) (json-read))
              ,@body))))))
@@ -589,11 +589,9 @@ of QUERY-NAME."
 
 (leetcode--define-graphql problemset-question-list-v2 (category-slug skip limit filters search-keyword sort-by)
   (let ((problems)
-        (problems-len (length .data.problemsetQuestionListV2.questions)))
-    (setf (leetcode-problems-num leetcode--problems) problems-len
-          (leetcode-problems-tag leetcode--problems) "all")
-    (leetcode--debug "length: %s, total: %s" problems-len .data.problemsetQuestionListV2.totalLength)
-    (dotimes (i problems-len)
+        (page-problems-len (length .data.problemsetQuestionListV2.questions)))
+    (leetcode--debug "length: %s, total: %s" page-problems-len .data.problemsetQuestionListV2.totalLength)
+    (dotimes (i page-problems-len)
       (leetcode--debug "i: %s, p: %s" i (aref .data.problemsetQuestionListV2.questions i))
       (let-alist (aref .data.problemsetQuestionListV2.questions i)
         (push (make-leetcode-problem
@@ -610,7 +608,10 @@ of QUERY-NAME."
                                        .topicTags '()))
               problems)
         (setq leetcode--all-tags (append leetcode--all-tags (leetcode-problem-tags (car problems))))))
-    (setf (leetcode-problems-problems leetcode--problems) (nreverse problems))
+    (setf (leetcode-problems-problems leetcode--problems) (append (leetcode-problems-problems leetcode--problems) (nreverse problems))
+          (leetcode-problems-num leetcode--problems) (+ (leetcode-problems-num leetcode--problems) page-problems-len)
+          (leetcode-problems-tag leetcode--problems) "all"
+          (leetcode-problems-has-more leetcode--problems) .data.problemsetQuestionListV2.hasMore)
     ;; problem tags
     (delete-dups leetcode--all-tags)))
 
@@ -874,6 +875,24 @@ row."
       (lambda (col size) (list col size nil))
       header-names widths))))
 
+(defvar leetcode--load-more-map
+  (let ((map (make-sparse-keymap)))
+    (prog1 map
+      (define-key map (kbd "RET") #'leetcode--load-more)
+      (define-key map [mouse-1] #'leetcode--load-more))))
+
+(aio-defun leetcode--load-more ()
+  "Load more problems."
+  (interactive)
+  (aio-await (leetcode--fetch-question-list "all-code-essentials"
+                                            (leetcode-problems-num leetcode--problems)
+                                            100
+                                            '((filterCombineType . "ALL"))
+                                            ""
+                                            '((sortField . "CUSTOM")
+                                              (sortOrder . "ASCENDING"))))
+  (leetcode-refresh))
+
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."
   (interactive)
@@ -885,10 +904,21 @@ row."
       (leetcode--problems-mode)
       (setq tabulated-list-format headers)
       (setq tabulated-list-entries
-            (cl-mapcar
-             (lambda (i x) (list i x))
-             (number-sequence 0 (1- (length rows)))
-             rows))
+            (append
+             (cl-mapcar
+              (lambda (i x) (list i x))
+              (number-sequence 0 (1- (length rows)))
+              rows)
+             (if (leetcode-problems-has-more leetcode--problems)
+                 `((:load-more
+                    ["" ""
+                     ,(propertize "[Load More]"
+                                  'face 'button
+                                  'keymap leetcode--load-more-map
+                                  'help-echo "Click to load more"
+                                  'mouse-face 'highlight)
+                     "" "" ""])))))
+
       (tabulated-list-init-header)
       (tabulated-list-print t))))
 
@@ -896,8 +926,12 @@ row."
   "Refresh problems and update `tabulated-list-entries'."
   (interactive)
   (message "LeetCode refreshing question list...")
+  (setf (leetcode-problems-problems leetcode--problems) nil
+        (leetcode-problems-num leetcode--problems) 0
+        (leetcode-problems-has-more leetcode--problems) t)
   ;; max page limit is 100
-  (aio-await (leetcode--fetch-question-list "all-code-essentials" 0 100
+  (aio-await (leetcode--fetch-question-list "all-code-essentials"
+                                            0 100
                                             '((filterCombineType . "ALL"))
                                             ""
                                             '((sortField . "CUSTOM")
