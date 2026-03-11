@@ -785,14 +785,6 @@ Return a list of rows, each row is a vector:
                  (single-row (vector p-status p-id p-title p-acceptance p-difficulty p-tags)))
             (setq rows (cons single-row rows)))))))
 
-(defun leetcode--row-tags (row)
-  "Get tags from ROW."
-  (aref row 5))
-
-(defun leetcode--row-difficulty (row)
-  "Get difficulty from ROW."
-  (aref row 4))
-
 (defun leetcode--filter (rows)
   "Filter ROWS by `leetcode--filter-regex', `leetcode--filter-tag' and `leetcode--filter-difficulty'."
   (seq-filter
@@ -803,12 +795,12 @@ Return a list of rows, each row is a vector:
             (string-match-p leetcode--filter-regex title))
         t)
       (if leetcode--filter-tag
-          (let ((tags (s-split ", " (leetcode--row-tags row))))
+          (let ((tags (leetcode-problem-tags (leetcode--get-problem-by-id (aref row 1)))))
             (member leetcode--filter-tag tags))
         t)
       (if leetcode--filter-difficulty
-          (let ((difficulty (leetcode--row-difficulty row)))
-            (string= difficulty leetcode--filter-difficulty))
+          (let ((difficulty (leetcode-problem-difficulty (leetcode--get-problem-by-id (aref row 1)))))
+            (string-equal-ignore-case difficulty leetcode--filter-difficulty))
         t)))
    rows))
 
