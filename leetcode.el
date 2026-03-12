@@ -875,15 +875,8 @@ row."
       (lambda (col size) (list col size nil))
       header-names widths))))
 
-(defvar leetcode--load-more-map
-  (let ((map (make-sparse-keymap)))
-    (prog1 map
-      (define-key map (kbd "RET") #'leetcode--load-more)
-      (define-key map [mouse-1] #'leetcode--load-more))))
-
 (aio-defun leetcode--load-more ()
   "Load more problems."
-  (interactive)
   (aio-await (leetcode--fetch-question-list "all-code-essentials"
                                             (leetcode-problems-num leetcode--problems)
                                             100
@@ -892,6 +885,16 @@ row."
                                             '((sortField . "CUSTOM")
                                               (sortOrder . "ASCENDING"))))
   (leetcode-refresh))
+
+(defvar leetcode--load-more-button-fn
+  (lambda () (interactive) (aio-wait-for (leetcode--load-more)))
+  "Load more button action.")
+
+(defvar leetcode--load-more-map
+  (let ((map (make-sparse-keymap)))
+    (prog1 map
+      (define-key map (kbd "RET") leetcode--load-more-button-fn)
+      (define-key map [mouse-1] leetcode--load-more-button-fn))))
 
 (defun leetcode-refresh ()
   "Make `tabulated-list-entries'."

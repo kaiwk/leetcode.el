@@ -97,7 +97,3 @@ You can save solution by setting `leetcode-save-solutions`:
 
 Call `leetcode-toggle-debug`, log will output in `*leetcode-log*` buffer.
 
-# Contributing
-
-Please submit PR to develop branch.
-
