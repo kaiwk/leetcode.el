@@ -32,6 +32,11 @@
 ;;
 ;; Since most HTTP requests works asynchronously, it won't block Emacs.
 ;;
+;; LeetCode cookies are restored from local browser cookies, by
+;; default with `my_cookies'.  `leetcode-cookie-firefox-profile-dir'
+;; can be set to read them directly from a Firefox-family profile
+;; directory (e.g. Zen).
+;;
 ;;; Code:
 (eval-when-compile
   (require 'let-alist))
@@ -137,6 +142,24 @@ mysql, mssql, oraclesql."
   "The path to the isolated python virtual-environment to use."
   :group 'leetcode
   :type 'directory)
+
+(defcustom leetcode-cookie-firefox-profile-dir nil
+  "Directory of a Firefox-family browser profile to read cookies from.
+
+LeetCode cookies are normally read with `my_cookies' (see
+`leetcode--cookie-get-all'), which does not know the Zen browser
+and always returns the first browser jar it finds, even when the
+session in it is stale.  When this is non-nil, cookies are read
+directly from the cookies.sqlite of the given Firefox-family
+profile directory (Zen, LibreWolf, Waterfox, Firefox) and used
+instead.  The value must be the directory that contains the
+profile subdirectories, e.g. \"~/.config/zen\" for Zen or
+\"~/.mozilla/firefox\" for Firefox.
+
+When the directory is absent or contains no cookie for the
+LeetCode domain, `my_cookies' is used as a fallback."
+  :group 'leetcode
+  :type '(choice (const :tag "Disabled" nil) directory))
 
 (cl-defstruct leetcode-user
   "A LeetCode User.
@@ -419,14 +442,121 @@ query consolePanelConfig($titleSlug: String!) {
 VALUE should be the referer."
   (cons "Referer" value))
 
+(defconst leetcode--firefox-cookie-script
+  "import argparse
+import configparser
+import glob
+import os
+import sqlite3
+
+def cookie_files(profile_dir):
+    files = sorted(glob.glob(os.path.join(profile_dir, '**', 'cookies.sqlite'),
+                             recursive=True))
+    if not files:
+        return files
+    ini = os.path.join(profile_dir, 'profiles.ini')
+    default = None
+    if os.path.isfile(ini):
+        try:
+            cp = configparser.ConfigParser()
+            cp.read(ini, encoding='utf8')
+            # Mirror browser_cookie3 semantics: an Install section's
+            # Default wins over Default=1 sections.
+            for section in cp.sections():
+                if section.startswith('Install'):
+                    default = cp[section].get('Default')
+                    break
+                if cp[section].get('Default') == '1' and not default:
+                    default = cp[section].get('Path')
+        except Exception:
+            default = None
+    if default:
+        target = os.path.join(profile_dir, default, 'cookies.sqlite')
+        if target in files:
+            files.remove(target)
+        files.insert(0, target)
+    return files
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--profile-dir', required=True)
+    parser.add_argument('--domain', required=True)
+    args = parser.parse_args()
+    profile_dir = os.path.expanduser(args.profile_dir)
+    for path in cookie_files(profile_dir):
+        if not os.path.isfile(path):
+            continue
+        try:
+            # immutable=1: read-only view that bypasses the lock the
+            # browser holds on cookies.sqlite while running.
+            db = sqlite3.connect('file:%s?immutable=1' % path, uri=True)
+            try:
+                rows = db.execute('select name, value from moz_cookies '
+                                  'where host like ?',
+                                  ('%' + args.domain + '%',)).fetchall()
+            finally:
+                db.close()
+        except sqlite3.Error:
+            continue
+        if rows:
+            seen = {}
+            for name, value in rows:
+                seen[name] = value
+            for name in sorted(seen):
+                print(name, seen[name])
+            return
+
+if __name__ == '__main__':
+    main()
+"
+  "Python script that reads cookies from a Firefox-family cookies.sqlite.
+Prints one `name value' line per cookie for the requested domain.
+Exits silently (empty output, status 0) when the profile directory
+is absent or has no cookie for the domain.")
+
+(defun leetcode--cookies-from-output (output)
+  "Parse OUTPUT lines of \"name value\" into a list of (NAME VALUE) pairs."
+  (let ((cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
+                                  (s-split "\n" output 'OMIT-NULLS))))
+    (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
+
+(defun leetcode--read-firefox-cookies (dir)
+  "Read LeetCode cookies from Firefox-family profile directory DIR.
+Return a list of (NAME VALUE) pairs, or nil when DIR is absent or
+has no cookie for `leetcode--domain'."
+  (when (file-directory-p (expand-file-name dir))
+    (let ((python (or (executable-find "python3")
+                      (executable-find "python"))))
+      (when python
+        (with-temp-buffer
+          (insert leetcode--firefox-cookie-script)
+          (let* ((out (generate-new-buffer " *leetcode-cookie-output*"))
+                (status
+                 (call-process-region (point-min) (point-max) python
+                                      nil out nil
+                                      "-" "--profile-dir"
+                                      (expand-file-name dir)
+                                      "--domain" leetcode--domain)))
+            (unwind-protect
+                (and (eq status 0)
+                     (leetcode--cookies-from-output
+                      (with-current-buffer out (buffer-string))))
+              (kill-buffer out))))))))
+
+(defun leetcode--my-cookies-cookies ()
+  "Get LeetCode cookies with `my_cookies'. You can install it with pip."
+  (leetcode--cookies-from-output
+   (shell-command-to-string (leetcode--my-cookies-path))))
+
 (defun leetcode--cookie-get-all ()
-  "Get leetcode session with `my_cookies'. You can install it with pip."
-  (let* ((my-cookies (leetcode--my-cookies-path))
-         (my-cookies-output (shell-command-to-string (leetcode--my-cookies-path)))
-         (cookies-list (seq-filter (lambda (s) (not (string-empty-p s)))
-                                   (s-split "\n" my-cookies-output 'OMIT-NULLS)))
-         (cookies-pairs (seq-map (lambda (s) (s-split-up-to " " s 1 'OMIT-NULLS)) cookies-list)))
-    cookies-pairs))
+  "Get LeetCode cookies.
+
+Read them from `leetcode-cookie-firefox-profile-dir' when it is
+set, falling back to `my_cookies'."
+  (or (and leetcode-cookie-firefox-profile-dir
+           (leetcode--read-firefox-cookies
+            leetcode-cookie-firefox-profile-dir))
+      (leetcode--my-cookies-cookies)))
 
 (defun leetcode--cookie-get (cookie-key)
   "Get LeetCode cookie value by COOKIE-KEY."
@@ -1206,7 +1336,8 @@ will show the detail in other window and jump to it."
                       "dislikes: " (number-to-string dislikes)))
       ;; Sometimes LeetCode don't have a '<p>' at the outermost...
       (insert "<p>" content "</p>")
-      (leetcode--replace-in-buffer "" "")
+      (leetcode--replace-in-buffer "
+" "")
       ;; NOTE: shr.el can't render "https://xxxx.png", so we use "http"
       (leetcode--replace-in-buffer "https" "http")
       (shr-render-buffer (current-buffer)))
@@ -1429,7 +1560,8 @@ major mode by `leetcode-prefer-language'and `auto-mode-alist'."
             (leetcode--insert-code-start-marker)
             (insert template-code)
             (leetcode--insert-code-end-marker)
-            (leetcode--replace-in-buffer "" "")))
+            (leetcode--replace-in-buffer "
+" "")))
         (funcall (assoc-default suffix auto-mode-alist #'string-match-p))
         (leetcode-solution-mode t))
 

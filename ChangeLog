@@ -1,3 +1,12 @@
+2026-09-07  kazure
+
+	* leetcode.el (leetcode-cookie-firefox-profile-dir)
+	(leetcode--firefox-cookie-script, leetcode--cookies-from-output)
+	(leetcode--read-firefox-cookies, leetcode--my-cookies-cookies)
+	(leetcode--cookie-get-all): add optional Firefox-family cookie
+	source, reading cookies.sqlite directly (Zen support) before
+	falling back to my_cookies.
+
 2022-05-03  Wang Kai  <kaiwkx@gmail.com>
 
 	* leetcode.el (leetcode--set-evil-local-map): set evil-normal-state-local-map.

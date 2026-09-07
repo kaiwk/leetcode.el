@@ -75,5 +75,33 @@
     (should (equal (leetcode--get-code-buffer-name "Reverse Nodes in k-Group")
                    "reverse-nodes-in-k-group.py"))))
 
+(ert-deftest leetcode-cookie-test-parse-output ()
+  (should (equal (leetcode--cookies-from-output "a 1\nb 2 3\n")
+                 '(("a" "1") ("b" "2 3"))))
+  (should (equal (leetcode--cookies-from-output "") nil))
+  (should (equal (leetcode--cookies-from-output "no-space-here\n")
+                 '(("no-space-here")))))
+
+(ert-deftest leetcode-cookie-test-read-firefox-dir-absent ()
+  (should (equal (leetcode--read-firefox-cookies "/nonexistent/xyz") nil)))
+
+(ert-deftest leetcode-cookie-test-get-all-fallback ()
+  (cl-letf (((symbol-function 'leetcode--read-firefox-cookies)
+             (lambda (_) nil))
+            ((symbol-function 'leetcode--my-cookies-cookies)
+             (lambda () '(("a" "1") ("b" "2")))))
+    (let ((leetcode-cookie-firefox-profile-dir "/some/dir"))
+      (should (equal (leetcode--cookie-get-all)
+                     '(("a" "1") ("b" "2")))))))
+
+(ert-deftest leetcode-cookie-test-get-all-firefox-first ()
+  (cl-letf (((symbol-function 'leetcode--read-firefox-cookies)
+             (lambda (_) '(("LEETCODE_SESSION" "x"))))
+            ((symbol-function 'leetcode--my-cookies-cookies)
+             (lambda () (error "should not be called"))))
+    (let ((leetcode-cookie-firefox-profile-dir "/some/dir"))
+      (should (equal (leetcode--cookie-get-all)
+                     '(("LEETCODE_SESSION" "x")))))))
+
 (provide 'leetcode-tests)
 ;;; leetcode-tests.el ends here
