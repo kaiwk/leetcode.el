@@ -32,6 +32,11 @@
 ;;
 ;; Since most HTTP requests works asynchronously, it won't block Emacs.
 ;;
+;; LeetCode cookies are restored from local browser cookies, by
+;; default with `my_cookies'.  `leetcode-cookie-firefox-profile-dir'
+;; can be set to read them directly from a Firefox-family profile
+;; directory (e.g. Zen).
+;;
 ;;; Code:
 (eval-when-compile
   (require 'let-alist))

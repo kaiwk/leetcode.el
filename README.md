@@ -89,6 +89,23 @@ You can save solution by setting `leetcode-save-solutions`:
 (setq leetcode-directory "~/leetcode")
 ```
 
+## Cookie source
+
+By default, the LeetCode session is restored with `my_cookies` (see
+Installation).  If you log in with a Firefox-family browser that
+`my_cookies` does not know — for example [Zen](https://zen-browser.app/),
+whose profiles live under `~/.config/zen` — set
+`leetcode-cookie-firefox-profile-dir` and cookies are read directly from
+its `cookies.sqlite` instead:
+
+```elisp
+(setq leetcode-cookie-firefox-profile-dir "~/.config/zen")
+```
+
+The value must be the directory containing the profile subdirectories
+(`~/.mozilla/firefox` for Firefox).  When the directory is absent or has
+no cookie for LeetCode, `my_cookies` is used as a fallback.
+
 # Work with Org Mode
 
 `leetcode-show-problem-by-slug` will let you put to org files with a link in this format to show the question after the *leetcode* buffer is load like [elisp:(leetcode-show-problem-by-slug (leetcode--slugify-title "ZigZag Conversion"))]
